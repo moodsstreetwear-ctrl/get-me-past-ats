@@ -10,7 +10,16 @@ const presetKeywords = {
   manufacturing: ["machine operation", "manufacturing", "production", "quality checks", "forklift", "safety", "equipment", "troubleshooting", "material handling", "rotating shifts", "12-hour shifts", "preventive maintenance"],
   maintenance: ["maintenance", "electrical", "troubleshooting", "repair", "installation", "hand tools", "power tools", "carpentry", "preventive maintenance", "safety", "work orders"],
   cdl: ["CDL", "TWIC", "DOT", "logistics", "delivery", "safety", "pre-trip", "route", "customer service", "equipment inspection"],
-  entry: ["paid training", "entry level", "willing to learn", "reliable", "attendance", "safety", "team environment", "hands-on", "growth", "long term"]
+  entry: ["paid training", "entry level", "willing to learn", "reliable", "attendance", "safety", "team environment", "hands-on", "growth", "long term"],
+  warehouse: ["warehouse", "forklift", "material handling", "picking", "packing", "inventory", "shipping", "receiving", "pallet jack", "RF scanner", "loading", "unloading", "order picking"],
+  construction: ["construction", "carpentry", "laborer", "hand tools", "power tools", "measuring", "installations", "doors", "trim", "framing", "job site safety", "blueprints"],
+  electrician: ["electrical", "electrician helper", "apprentice", "wiring", "outlets", "switches", "conduit", "panels", "troubleshooting", "hand tools", "safety", "installation"],
+  welding: ["welding", "fabrication", "grinding", "blueprint reading", "measuring", "cutting", "fitting", "shop safety", "hand tools", "power tools", "quality inspection"],
+  diesel: ["diesel", "mechanic", "preventive maintenance", "diagnostics", "troubleshooting", "repair", "hydraulics", "brakes", "inspection", "hand tools", "power tools", "heavy equipment"],
+  security: ["security", "patrol", "access control", "incident reports", "surveillance", "customer service", "observation", "emergency response", "professionalism", "de-escalation"],
+  remote: ["remote", "customer support", "data entry", "chat support", "email support", "CRM", "typing", "communication", "problem solving", "documentation", "computer skills"],
+  apprenticeship: ["apprenticeship", "paid training", "trade", "helper", "hands-on", "willing to learn", "tools", "safety", "reliable", "attendance", "long term", "career growth"],
+  rail: ["rail", "railcar", "industrial", "switching", "safety", "equipment inspection", "signals", "yard", "mechanical", "material handling", "production", "team communication"]
 };
 
 const demoResume = `Harold Hilton Jr.
@@ -83,7 +92,11 @@ function extractImportantKeywords(jobText, jobType) {
     "machine operation", "quality checks", "quality control", "material handling", "production flow", "safety procedures",
     "rotating shifts", "12-hour shifts", "preventive maintenance", "basic troubleshooting", "hand tools", "power tools",
     "entry level", "paid training", "team environment", "stable work history", "customer service", "work orders",
-    "electrical troubleshooting", "equipment monitoring", "operate multiple pieces of equipment", "fast-paced production"
+    "electrical troubleshooting", "equipment monitoring", "operate multiple pieces of equipment", "fast-paced production",
+    "forklift operation", "shipping and receiving", "order picking", "inventory control", "pallet jack", "RF scanner",
+    "job site safety", "blueprint reading", "electrical wiring", "conduit bending", "welding fabrication", "diesel repair",
+    "heavy equipment", "access control", "incident reports", "remote work", "chat support", "data entry", "trade apprenticeship",
+    "railcar inspection", "yard safety", "equipment inspection"
   ];
 
   const phrases = phraseBank.filter(phrase => phraseInText(phrase, jobText));
@@ -166,7 +179,16 @@ function buildSummary(jobType, analysis) {
     manufacturing: "Reliable industrial and manufacturing worker with hands-on experience in machine operation, production support, equipment monitoring, safety procedures, and quality checks.",
     maintenance: "Hands-on maintenance and electrical helper candidate with experience using tools, troubleshooting problems, supporting repairs, and completing work safely.",
     cdl: "CDL-A holder with a safety-focused background, hands-on industrial experience, and the ability to follow procedures, inspect equipment, and work reliably.",
-    entry: "Motivated entry-level candidate with real hands-on work experience, strong attendance, and willingness to learn a long-term trade or skilled position."
+    entry: "Motivated entry-level candidate with real hands-on work experience, strong attendance, and willingness to learn a long-term trade or skilled position.",
+    warehouse: "Reliable warehouse and material handling candidate with experience around production flow, forklift support, loading, unloading, inventory, and safety-focused work.",
+    construction: "Hands-on construction and carpentry candidate with experience using tools, supporting installations, following job-site safety rules, and completing physical work reliably.",
+    electrician: "Electrical helper and apprentice candidate with hands-on experience supporting wiring, outlets, switches, ceiling fans, troubleshooting, and safe tool use.",
+    welding: "Welding and fabrication helper candidate with hands-on industrial experience, tool use, measuring, shop safety, and willingness to learn skilled fabrication work.",
+    diesel: "Diesel mechanic and heavy equipment candidate with hands-on industrial experience, troubleshooting ability, equipment inspection habits, and a safety-first mindset.",
+    security: "Reliable security officer candidate with strong observation, professionalism, customer service, patrol, reporting, and safety awareness.",
+    remote: "Entry-level remote candidate with strong communication, reliability, documentation habits, problem solving, and willingness to support customers through phone, chat, or email.",
+    apprenticeship: "Trade apprenticeship candidate with hands-on work experience, strong attendance, tool familiarity, safety awareness, and long-term career motivation.",
+    rail: "Rail and industrial candidate with experience around production, equipment, material handling, safety procedures, and team communication in fast-paced environments."
   }[jobType];
 
   return `${typeLine} Experienced working in fast-paced environments, following instructions, supporting production goals, and learning new equipment or processes. Key strengths for this role include ${strengths.length ? strengths.join(", ") : "safety, reliability, teamwork, and problem solving"}. Add honest proof for these job-post keywords if they apply: ${needs.length ? needs.join(", ") : "no major missing keywords found"}.`;
@@ -199,6 +221,51 @@ function buildBullets(jobType, analysis) {
       "Showed strong willingness to learn by taking on hands-on tasks, following training, and improving through repetition.",
       "Built real work experience in fast-paced environments requiring reliability, attendance, safety, and teamwork.",
       "Supported daily operations by staying flexible, learning new responsibilities, and helping the team meet production goals."
+    ],
+    warehouse: [
+      "Moved, loaded, unloaded, and organized materials while following warehouse safety procedures and production expectations.",
+      "Used material handling habits, equipment awareness, and attention to detail to support shipping, receiving, inventory, and order flow.",
+      "Maintained reliable attendance and worked safely in fast-paced warehouse or production environments."
+    ],
+    construction: [
+      "Supported construction and carpentry tasks using hand tools, power tools, measuring, and safe job-site work habits.",
+      "Assisted with doors, trim, millwork, installation, cleanup, and material movement while following supervisor instructions.",
+      "Completed physical work in changing job-site conditions while staying focused on safety, quality, and reliability."
+    ],
+    electrician: [
+      "Assisted with residential electrical tasks including outlets, switches, ceiling fans, wiring support, and basic troubleshooting.",
+      "Used hand tools and power tools safely while following instructions, safety procedures, and installation standards.",
+      "Supported electrical work by preparing materials, keeping work areas clean, and learning tasks through hands-on repetition."
+    ],
+    welding: [
+      "Supported welding or fabrication work by preparing materials, measuring, grinding, cutting, and maintaining shop safety.",
+      "Followed instructions and quality standards while learning fabrication, fitting, blueprint reading, and tool use.",
+      "Worked in industrial or shop environments requiring safety awareness, attention to detail, and reliable attendance."
+    ],
+    diesel: [
+      "Supported equipment inspection, preventive maintenance, troubleshooting, and repair work with a safety-first mindset.",
+      "Used hands-on mechanical and industrial experience to identify issues, follow procedures, and learn diesel service tasks.",
+      "Worked with tools, equipment, and production demands while staying reliable, organized, and ready to learn."
+    ],
+    security: [
+      "Maintained awareness of surroundings while following site procedures, reporting concerns, and supporting a safe environment.",
+      "Used professionalism, communication, and customer service skills when interacting with employees, visitors, or customers.",
+      "Completed patrol, observation, access control, and incident reporting duties with reliability and attention to detail."
+    ],
+    remote: [
+      "Provided clear communication, documentation, and problem solving while supporting customers or internal teams remotely.",
+      "Used computer skills, typing, email, chat, and phone communication to handle tasks accurately and professionally.",
+      "Stayed organized and reliable while learning systems, following procedures, and meeting daily performance expectations."
+    ],
+    apprenticeship: [
+      "Built hands-on experience using tools, following safety rules, and learning skilled trade tasks through repetition.",
+      "Showed long-term career motivation by seeking paid training, apprenticeship opportunities, and growth in a skilled trade.",
+      "Supported crews, supervisors, and daily job needs while maintaining attendance, reliability, and willingness to learn."
+    ],
+    rail: [
+      "Worked around industrial equipment and production demands while following safety procedures and communicating with team members.",
+      "Supported rail or industrial operations through material handling, equipment awareness, inspection habits, and reliable attendance.",
+      "Completed fast-paced work while protecting safety, production flow, and quality standards."
     ]
   }[jobType] || [];
 
