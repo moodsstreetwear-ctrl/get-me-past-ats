@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GET ME PAST ATS</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav">
+      <div class="brand">
+        <span class="logo-mark">G</span>
+        <span>GET ME PAST ATS</span>
+      </div>
+      <a class="nav-link" href="#tracker">Application Tracker</a>
+    </nav>
+
+    <section class="hero-grid">
+      <div>
+        <p class="eyebrow">Resume + Job Post Analyzer</p>
+        <h1>Stop applying blind. See why your resume might get filtered out.</h1>
+        <p class="hero-copy">
+          Paste your resume and a job description. This tool gives you an ATS match score,
+          missing keywords, recruiter red flags, and stronger resume wording you can copy.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#analyzer">Analyze Resume</a>
+          <button class="button secondary" id="loadDemo">Load Demo</button>
+        </div>
+      </div>
+
+      <aside class="score-card preview-card" aria-label="ATS preview">
+        <p class="card-label">Starter MVP</p>
+        <div class="circle-score"><span>ATS</span></div>
+        <p>Built for real job seekers who need a human to finally see the resume.</p>
+      </aside>
+    </section>
+  </header>
+
+  <main>
+    <section class="panel" id="analyzer">
+      <div class="section-heading">
+        <p class="eyebrow">Step 1</p>
+        <h2>Paste your resume and the job description</h2>
+        <p>Everything runs in your browser. Nothing is uploaded anywhere.</p>
+      </div>
+
+      <div class="input-grid">
+        <label class="input-block">
+          <span>Your resume</span>
+          <textarea id="resumeText" placeholder="Paste your resume here..."></textarea>
+        </label>
+        <label class="input-block">
+          <span>Job description</span>
+          <textarea id="jobText" placeholder="Paste the full job post here..."></textarea>
+        </label>
+      </div>
+
+      <div class="controls">
+        <label>
+          Job type
+          <select id="jobType">
+            <option value="general">General</option>
+            <option value="manufacturing">Manufacturing / Machine Operator</option>
+            <option value="maintenance">Maintenance / Electrical Helper</option>
+            <option value="cdl">CDL / Logistics</option>
+            <option value="entry">Entry-Level / Paid Training</option>
+          </select>
+        </label>
+        <button class="button primary" id="analyzeBtn">Get My Score</button>
+        <button class="button ghost" id="clearBtn">Clear</button>
+      </div>
+    </section>
+
+    <section class="results-grid" id="results" hidden>
+      <article class="panel score-panel">
+        <p class="eyebrow">ATS Match</p>
+        <div class="big-score"><span id="scoreValue">0</span>%</div>
+        <p id="scoreMessage" class="score-message"></p>
+        <div class="score-bar"><span id="scoreBar"></span></div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Missing Keywords</p>
+        <h3>Words the job post wants but your resume may not show</h3>
+        <div class="chip-list" id="missingKeywords"></div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Matched Strengths</p>
+        <h3>Strong words already showing up</h3>
+        <div class="chip-list good" id="matchedKeywords"></div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Recruiter Red Flags</p>
+        <h3>Fix these before applying</h3>
+        <ul class="notes" id="redFlags"></ul>
+      </article>
+    </section>
+
+    <section class="panel" id="rewrite" hidden>
+      <div class="section-heading">
+        <p class="eyebrow">Step 2</p>
+        <h2>Copy-ready resume wording</h2>
+        <p>Use this as a starting point. Edit it so it stays honest and sounds like you.</p>
+      </div>
+
+      <div class="rewrite-grid">
+        <article>
+          <h3>Better summary</h3>
+          <div class="copy-box" id="summaryOutput"></div>
+          <button class="copy-button" data-copy="summaryOutput">Copy summary</button>
+        </article>
+        <article>
+          <h3>Better bullets</h3>
+          <div class="copy-box" id="bulletOutput"></div>
+          <button class="copy-button" data-copy="bulletOutput">Copy bullets</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" id="tracker">
+      <div class="section-heading">
+        <p class="eyebrow">Step 3</p>
+        <h2>Application tracker</h2>
+        <p>Track where you applied, pay, status, and follow-up dates. Stored locally in this browser.</p>
+      </div>
+
+      <form id="trackerForm" class="tracker-form">
+        <input id="company" placeholder="Company" required />
+        <input id="role" placeholder="Job title" required />
+        <input id="pay" placeholder="Pay, ex: $20.50/hr" />
+        <select id="status">
+          <option>Applied</option>
+          <option>Phone Interview</option>
+          <option>In-Person Interview</option>
+          <option>Offer</option>
+          <option>Rejected</option>
+          <option>Follow Up</option>
+        </select>
+        <button class="button primary" type="submit">Add Job</button>
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Company</th>
+              <th>Role</th>
+              <th>Pay</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="trackerRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>GET ME PAST ATS — prototype. It helps improve wording, but no app can guarantee an interview.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
