@@ -25,9 +25,12 @@ import {
 
 const stopWords = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
-  "job", "work", "team", "must", "able", "ability", "position", "company", "their", "they", "all", "can", "may",
-  "within", "other", "such", "into", "about", "each", "when", "where", "what", "who", "why", "how", "been",
-  "than", "then", "also", "any", "not", "but", "more", "less", "per", "hour", "week", "day", "shift", "required"
+  "job", "jobs", "work", "worker", "team", "must", "able", "ability", "position", "company", "their", "they",
+  "all", "can", "may", "within", "other", "such", "into", "about", "each", "when", "where", "what", "who", "why",
+  "how", "been", "than", "then", "also", "any", "not", "but", "more", "less", "per", "hour", "week", "day",
+  "shift", "required", "preferred", "responsibilities", "requirements", "duties", "skills", "experience", "years", "year",
+  "candidate", "applicant", "role", "include", "including", "perform", "maintain", "using", "use", "needed", "needs",
+  "good", "great", "strong", "high", "low", "new", "current", "full", "part", "time", "plus", "etc", "etc."
 ]);
 
 const presetKeywords = {
@@ -84,6 +87,366 @@ const presetKeywords = {
   cybersecurity_analyst: ["cybersecurity", "security analyst", "network security", "incident response", "SIEM", "risk assessment", "vulnerability", "monitoring", "documentation", "access control"]
 };
 
+const relatedKeywordMap = {
+  "material handling": ["moved materials", "move materials", "handled materials", "materials", "loading", "unloading", "pallets", "forklift", "pallet jack"],
+  "machine operation": ["machine operator", "operated machines", "operated equipment", "equipment operation", "production equipment", "equipment monitoring"],
+  "equipment monitoring": ["monitored equipment", "monitored machines", "machine operation", "checked equipment", "equipment checks"],
+  "quality checks": ["quality control", "quality inspection", "inspected", "inspection", "checked quality", "defects"],
+  "quality control": ["quality checks", "quality inspection", "inspected", "inspection", "checked quality"],
+  "fast-paced": ["fast paced", "high volume", "production flow", "rush", "busy environment"],
+  "troubleshooting": ["diagnostics", "diagnosed", "problem solving", "resolved issues", "repair", "restarts", "fixed", "identify issues"],
+  "setup": ["set up", "changeover", "changeovers", "machine setup", "prepared equipment"],
+  "restarts": ["restart", "reset", "resets", "machine reset", "started equipment"],
+  "preventive maintenance": ["PM", "PMs", "maintenance", "inspections", "equipment checks", "routine maintenance"],
+  "work orders": ["tickets", "maintenance requests", "repair requests", "service requests"],
+  "hand tools": ["tools", "power tools", "tool use", "wrenches", "drills"],
+  "power tools": ["tools", "hand tools", "drills", "saws", "impact"],
+  "electrical": ["wiring", "outlets", "switches", "panels", "fixtures", "ceiling fans", "electrical troubleshooting"],
+  "plumbing": ["pipes", "leaks", "faucets", "toilets", "drains"],
+  "HVAC": ["heating", "air conditioning", "air conditioner", "filters", "thermostat", "duct"],
+  "apartment maintenance": ["property maintenance", "work orders", "turnovers", "repairs", "painting", "plumbing", "electrical"],
+  "property maintenance": ["apartment maintenance", "turnovers", "work orders", "repairs", "grounds"],
+  "customer service": ["customer support", "guest service", "helped customers", "answered questions", "client support", "de-escalation"],
+  "customer support": ["customer service", "phone support", "chat support", "email support", "helped customers"],
+  "communication": ["communicated", "documentation", "reported", "explained", "phone calls", "email"],
+  "documentation": ["documented", "records", "reports", "logs", "notes", "paperwork"],
+  "data entry": ["entered data", "typing", "records", "spreadsheets", "clerical", "documentation"],
+  "attention to detail": ["accuracy", "detail", "checked", "verified", "inspection", "quality"],
+  "Microsoft Office": ["Word", "Excel", "PowerPoint", "Outlook", "spreadsheets", "office software"],
+  "CRM": ["customer database", "ticketing system", "support software", "salesforce", "zendesk"],
+  "phone etiquette": ["phone calls", "call center", "phone support", "answered phones"],
+  "de-escalation": ["calm", "conflict", "resolved issues", "customer complaints", "professional communication"],
+  "cash handling": ["cashier", "transactions", "register", "POS", "payments"],
+  "POS": ["register", "cashier", "transactions", "checkout", "point of sale"],
+  "inventory": ["stock", "stocking", "counted", "cycle counts", "materials", "supplies"],
+  "merchandising": ["stocking", "shelves", "displays", "sales floor"],
+  "shipping": ["shipped", "outbound", "shipments", "shipping and receiving", "packing"],
+  "receiving": ["received", "inbound", "shipments", "shipping and receiving", "unloading"],
+  "order picking": ["picking", "picked orders", "pulling orders", "picking orders"],
+  "RF scanner": ["scanner", "scanning", "scanned", "handheld scanner", "barcode"],
+  "pallet jack": ["pallets", "material handling", "warehouse equipment"],
+  "forklift": ["fork lift", "forklift operator", "material handling", "pallets"],
+  "loading": ["loaded", "load", "unloading", "materials", "trucks"],
+  "unloading": ["unloaded", "unload", "loading", "materials", "trucks"],
+  "safe driving": ["clean driving", "driving safety", "DOT", "pre-trip", "defensive driving"],
+  "route": ["routes", "navigation", "GPS", "deliveries", "route planning"],
+  "proof of delivery": ["POD", "delivery confirmation", "signature", "delivered"],
+  "CDL": ["CDL-A", "commercial driver", "truck driver"],
+  "DOT": ["department of transportation", "pre-trip", "post-trip", "hours of service"],
+  "pre-trip": ["pre trip", "equipment inspection", "vehicle inspection"],
+  "post-trip": ["post trip", "vehicle inspection", "equipment inspection"],
+  "hours of service": ["HOS", "logs", "logbook", "ELD"],
+  "welding": ["welder", "fabrication", "MIG", "TIG", "grinding", "cutting"],
+  "fabrication": ["welding", "cutting", "grinding", "fitting", "measuring"],
+  "blueprint reading": ["blueprints", "drawings", "schematics", "measurements"],
+  "diesel": ["diesel mechanic", "heavy equipment", "trucks", "engines"],
+  "diagnostics": ["troubleshooting", "diagnosed", "inspection", "testing"],
+  "security": ["patrol", "access control", "surveillance", "incident reports", "observation"],
+  "access control": ["checked IDs", "entry control", "secured entrances", "visitor logs"],
+  "incident reports": ["reports", "documented incidents", "logs", "security reports"],
+  "cleaning": ["cleaned", "sanitation", "custodial", "housekeeping", "janitorial"],
+  "sanitation": ["cleaning", "sanitized", "restrooms", "food safety"],
+  "guest service": ["customer service", "front desk", "hospitality", "helped guests"],
+  "food safety": ["sanitation", "kitchen safety", "safe food handling", "cleaning"],
+  "patient care": ["caregiver", "ADLs", "vital signs", "compassion", "resident care"],
+  "vital signs": ["blood pressure", "pulse", "temperature", "patient care"],
+  "ADLs": ["activities of daily living", "bathing", "dressing", "mobility assistance", "patient care"],
+  "HIPAA": ["patient privacy", "confidentiality", "medical records"],
+  "infection control": ["sanitation", "PPE", "sterilization", "cleaning", "safety"],
+  "phlebotomy": ["blood draw", "venipuncture", "specimen collection"],
+  "medical records": ["records", "documentation", "HIPAA", "patient charts"],
+  "technical support": ["IT help desk", "troubleshooting", "tickets", "password reset", "hardware", "software"],
+  "IT help desk": ["technical support", "tickets", "troubleshooting", "hardware", "software"],
+  "tickets": ["ticketing system", "support requests", "work orders", "documentation"],
+  "cybersecurity": ["security analyst", "network security", "incident response", "vulnerability", "access control"],
+  "network security": ["cybersecurity", "monitoring", "incident response", "risk assessment"],
+  "incident response": ["security incidents", "monitoring", "cybersecurity", "reports"]
+};
+
+
+
+Object.assign(relatedKeywordMap, {
+  "safety procedures": ["safety", "PPE", "followed procedures", "safe work", "safety rules", "workplace safety"],
+  "teamwork": ["team environment", "crew", "coworkers", "worked with team", "helped team"],
+  "attendance": ["reliable", "dependable", "punctual", "showed up", "stable work history"],
+  "strong attendance": ["attendance", "reliable", "dependable", "punctual", "stable work history"],
+  "time management": ["deadlines", "on time", "routes", "schedule", "prioritized"],
+  "organization": ["organized", "records", "filing", "inventory", "tracking"],
+  "scheduling": ["appointments", "calendar", "coordinated", "planned"],
+  "calendar": ["scheduling", "appointments", "coordinated"],
+  "records": ["documentation", "files", "data entry", "logs", "paperwork"],
+  "filing": ["records", "documents", "paperwork", "office support"],
+  "confidentiality": ["private", "privacy", "HIPAA", "sensitive information"],
+  "active listening": ["listened", "customer questions", "answered questions", "customer concerns"],
+  "customer satisfaction": ["happy customers", "resolved complaints", "customer service", "customer support"],
+  "phone support": ["phone calls", "answered phones", "call center", "customer calls"],
+  "chat support": ["messages", "online support", "customer support", "email support"],
+  "email support": ["email", "messages", "customer support", "documentation"],
+  "work from home": ["remote", "independent", "computer", "home office"],
+  "typing": ["data entry", "keyboard", "entered data", "computer skills"],
+  "accuracy": ["attention to detail", "verified", "checked", "quality", "error-free"],
+  "spreadsheets": ["Excel", "Microsoft Office", "data entry", "records"],
+  "sales goals": ["sales", "quota", "upselling", "revenue", "targets"],
+  "upselling": ["sales", "recommended products", "product knowledge"],
+  "product knowledge": ["sales", "customer questions", "recommended products"],
+  "cashier": ["register", "cash handling", "POS", "transactions"],
+  "transactions": ["cash handling", "payments", "register", "POS"],
+  "merchandising": ["stocking", "displays", "shelves", "sales floor"],
+  "stocking": ["stock", "inventory", "shelves", "merchandising"],
+  "warehouse": ["shipping", "receiving", "loading", "unloading", "inventory", "materials"],
+  "picking": ["order picking", "picked orders", "pulling orders", "selected items"],
+  "packing": ["packaged", "shipping", "orders", "boxes"],
+  "shipping and receiving": ["shipping", "receiving", "loaded", "unloaded", "shipments"],
+  "production": ["manufacturing", "production line", "machine operation", "assembly"],
+  "manufacturing": ["production", "machine operation", "assembly", "industrial"],
+  "assembly": ["assembled", "production", "parts", "hand tools"],
+  "production goals": ["production rate", "quota", "output", "daily goals"],
+  "equipment": ["machines", "tools", "equipment monitoring", "machine operation"],
+  "changeovers": ["setup", "changed over", "machine setup", "prepared equipment"],
+  "repair": ["repairs", "fixed", "troubleshooting", "maintenance"],
+  "repairs": ["repair", "fixed", "troubleshooting", "maintenance"],
+  "installation": ["installed", "setup", "mounted", "built"],
+  "turnovers": ["make-ready", "unit turns", "apartment turns", "prepared apartments"],
+  "painting": ["painted", "turnovers", "property maintenance", "repairs"],
+  "grounds": ["property maintenance", "cleanup", "outside areas", "groundskeeping"],
+  "wiring": ["electrical", "outlets", "switches", "fixtures", "panels"],
+  "outlets": ["electrical", "wiring", "receptacles", "switches"],
+  "switches": ["electrical", "wiring", "outlets", "fixtures"],
+  "conduit": ["electrical", "wiring", "installation"],
+  "panels": ["electrical", "breakers", "wiring"],
+  "NEC": ["electrical code", "code", "electrical safety"],
+  "MIG": ["welding", "welder", "fabrication"],
+  "TIG": ["welding", "welder", "fabrication"],
+  "grinding": ["welding", "fabrication", "cutting", "shop tools"],
+  "cutting": ["welding", "fabrication", "grinding"],
+  "fitting": ["fabrication", "welding", "measuring"],
+  "brakes": ["diesel", "mechanic", "repair", "inspection"],
+  "hydraulics": ["diesel", "mechanic", "heavy equipment", "repair"],
+  "inspection": ["inspected", "checked", "quality", "safety", "diagnostics"],
+  "heavy equipment": ["diesel", "mechanic", "equipment", "trucks"],
+  "patrol": ["walked assigned areas", "security", "monitored", "observation"],
+  "surveillance": ["cameras", "monitored", "security", "observation"],
+  "observation": ["monitored", "watched", "patrol", "security"],
+  "emergency response": ["emergency", "incident", "security", "safety"],
+  "professionalism": ["professional", "respectful", "customer service", "communication"],
+  "janitorial": ["cleaning", "custodial", "sanitation", "trash removal"],
+  "custodial": ["janitorial", "cleaning", "sanitation"],
+  "trash removal": ["trash", "cleaning", "janitorial", "custodial"],
+  "floor care": ["floors", "mopping", "sweeping", "cleaning"],
+  "restrooms": ["bathrooms", "cleaning", "sanitation", "supplies"],
+  "housekeeping": ["cleaning", "rooms", "laundry", "guest service"],
+  "rooms": ["housekeeping", "hotel", "cleaning", "guest service"],
+  "laundry": ["housekeeping", "cleaning", "rooms"],
+  "front desk": ["receptionist", "guest service", "check-in", "phone calls"],
+  "reservations": ["booking", "front desk", "hotel", "guest service"],
+  "check-in": ["check in", "front desk", "guest service", "hotel"],
+  "check-out": ["check out", "front desk", "guest service", "hotel"],
+  "server": ["restaurant", "orders", "guest service", "POS"],
+  "orders": ["server", "restaurant", "POS", "customer service"],
+  "food prep": ["prep", "kitchen", "cook", "recipes"],
+  "kitchen": ["cook", "food prep", "restaurant", "sanitation"],
+  "recipes": ["cook", "food prep", "kitchen"],
+  "CNA": ["certified nursing assistant", "patient care", "ADLs", "vital signs"],
+  "certified nursing assistant": ["CNA", "patient care", "ADLs", "vital signs"],
+  "compassion": ["patient care", "caregiver", "resident care", "helped patients"],
+  "caregiver": ["patient care", "home health aide", "ADLs", "companionship"],
+  "companionship": ["caregiver", "home health aide", "patient care"],
+  "meal prep": ["prepared meals", "home health aide", "caregiver"],
+  "mobility assistance": ["walking assistance", "transfers", "ADLs", "patient care"],
+  "EKG": ["electrocardiogram", "patient care", "medical assistant"],
+  "clinical support": ["medical assistant", "patient care", "vital signs", "documentation"],
+  "specimen collection": ["blood draw", "phlebotomy", "samples", "labeling"],
+  "venipuncture": ["blood draw", "phlebotomy", "specimen collection"],
+  "prescriptions": ["pharmacy technician", "medication", "pharmacy"],
+  "medication": ["prescriptions", "pharmacy technician", "medication administration"],
+  "pharmacy software": ["pharmacy technician", "computer", "prescriptions"],
+  "sterilization": ["infection control", "dental assistant", "sanitation"],
+  "x-rays": ["dental assistant", "radiographs", "patient care"],
+  "chairside assistance": ["dental assistant", "patient care", "instruments"],
+  "instruments": ["dental assistant", "sterilization", "chairside assistance"],
+  "medication administration": ["medication", "LPN", "RN", "patient care"],
+  "care plans": ["patient care", "nursing", "documentation"],
+  "patient assessment": ["nursing", "RN", "vital signs", "patient care"],
+  "claims": ["medical billing", "insurance", "CPT", "ICD-10"],
+  "denials": ["medical billing", "claims", "insurance"],
+  "CPT": ["medical coding", "medical billing", "claims"],
+  "ICD-10": ["medical coding", "medical billing", "claims"],
+  "HCPCS": ["medical coding", "claims", "billing"],
+  "classroom support": ["teacher assistant", "students", "lesson support"],
+  "student supervision": ["students", "classroom", "supervised children"],
+  "lesson support": ["lesson plans", "teacher assistant", "classroom support"],
+  "behavior support": ["behavior management", "students", "classroom management"],
+  "classroom management": ["students", "behavior management", "substitute teacher"],
+  "accounts payable": ["AP", "invoices", "bookkeeping"],
+  "accounts receivable": ["AR", "invoices", "bookkeeping"],
+  "reconciliation": ["balanced", "bookkeeping", "accounts"],
+  "QuickBooks": ["bookkeeping software", "accounting software", "bookkeeping"],
+  "human resources": ["HR", "recruiting", "onboarding", "employee records"],
+  "HR assistant": ["human resources", "onboarding", "employee records"],
+  "onboarding": ["new hires", "orientation", "HR", "employee records"],
+  "recruiting": ["hiring", "candidates", "interviews", "HR"],
+  "employee records": ["HR", "records", "confidentiality"],
+  "hardware": ["computer hardware", "devices", "technical support"],
+  "software": ["applications", "programs", "technical support"],
+  "Windows": ["Microsoft Windows", "PC", "computer", "technical support"],
+  "password reset": ["login help", "account access", "technical support"],
+  "security analyst": ["cybersecurity", "network security", "incident response", "monitoring"],
+  "SIEM": ["security monitoring", "logs", "security analyst"],
+  "risk assessment": ["risk", "security", "vulnerability", "cybersecurity"],
+  "vulnerability": ["vulnerabilities", "security risk", "cybersecurity", "scanning"],
+  "monitoring": ["monitored", "security monitoring", "surveillance", "logs"]
+});
+
+const familyKeywordRules = {
+  general: {
+    high: ["reliable", "communication", "teamwork", "safety", "training"],
+    medium: ["problem solving", "attendance", "time management", "documentation"],
+    soft: ["professionalism", "organization"]
+  },
+  warehouse: {
+    high: ["warehouse", "material handling", "forklift", "pallet jack", "RF scanner", "order picking", "shipping", "receiving", "inventory", "loading", "unloading", "safety"],
+    medium: ["picking", "packing", "scanning", "equipment inspection", "fast-paced", "accuracy", "teamwork"],
+    soft: ["attendance", "communication", "time management"]
+  },
+  manufacturing: {
+    high: ["machine operation", "equipment monitoring", "manufacturing", "production", "quality checks", "quality control", "safety", "troubleshooting", "setup", "restarts"],
+    medium: ["material handling", "production flow", "changeovers", "fast-paced", "equipment", "12-hour shifts", "rotating shifts"],
+    soft: ["teamwork", "attendance", "communication"]
+  },
+  customer_service: {
+    high: ["customer service", "customer support", "communication", "problem solving", "documentation", "de-escalation", "active listening"],
+    medium: ["phone etiquette", "customer satisfaction", "CRM", "phone support", "email support"],
+    soft: ["professionalism", "patience", "teamwork"]
+  },
+  call_center: {
+    high: ["call center", "phone support", "customer service", "typing", "documentation", "problem solving", "de-escalation"],
+    medium: ["high call volume", "CRM", "phone etiquette", "scheduling", "active listening"],
+    soft: ["communication", "patience", "professionalism"]
+  },
+  remote: {
+    high: ["remote", "customer support", "chat support", "email support", "phone support", "CRM", "typing", "documentation"],
+    medium: ["problem solving", "work from home", "computer skills", "time management"],
+    soft: ["communication", "organization", "professionalism"]
+  },
+  dataentry: {
+    high: ["data entry", "typing", "accuracy", "attention to detail", "records", "spreadsheets", "computer skills"],
+    medium: ["Microsoft Office", "documentation", "clerical", "filing", "organization"],
+    soft: ["confidentiality", "time management"]
+  },
+  admin: {
+    high: ["administrative assistant", "office support", "scheduling", "email", "phone calls", "filing", "data entry", "records"],
+    medium: ["calendar", "organization", "Microsoft Office", "confidentiality", "customer service"],
+    soft: ["communication", "professionalism", "attention to detail"]
+  },
+  sales_retail: {
+    high: ["customer service", "sales", "cash handling", "POS", "inventory", "merchandising", "product knowledge"],
+    medium: ["transactions", "store operations", "sales floor", "upselling", "sales goals"],
+    soft: ["communication", "teamwork", "professionalism"]
+  },
+  delivery: {
+    high: ["delivery", "driver", "route", "safe driving", "customer service", "loading", "unloading", "proof of delivery"],
+    medium: ["navigation", "time management", "route planning", "equipment inspection", "communication"],
+    soft: ["reliable", "professionalism"]
+  },
+  cdl: {
+    high: ["truck driver", "CDL", "DOT", "pre-trip", "post-trip", "safe driving", "hours of service", "equipment inspection"],
+    medium: ["logistics", "route planning", "ELD", "loading", "unloading", "delivery"],
+    soft: ["communication", "time management", "reliable"]
+  },
+  maintenance: {
+    high: ["maintenance", "troubleshooting", "repair", "preventive maintenance", "work orders", "hand tools", "power tools", "safety"],
+    medium: ["electrical", "plumbing", "equipment repair", "installation", "documentation"],
+    soft: ["customer service", "communication", "time management"]
+  },
+  apartment: {
+    high: ["apartment maintenance", "property maintenance", "work orders", "HVAC", "plumbing", "electrical", "turnovers", "repairs"],
+    medium: ["painting", "grounds", "preventive maintenance", "customer service", "hand tools", "power tools"],
+    soft: ["communication", "professionalism", "time management"]
+  },
+  electrician: {
+    high: ["electrical", "wiring", "outlets", "switches", "conduit", "panels", "troubleshooting", "installation", "safety"],
+    medium: ["blueprints", "NEC", "hand tools", "power tools", "fixtures"],
+    soft: ["attention to detail", "teamwork", "communication"]
+  },
+  welding: {
+    high: ["welding", "fabrication", "blueprint reading", "grinding", "cutting", "fitting", "measuring", "shop safety"],
+    medium: ["quality inspection", "MIG", "TIG", "hand tools", "materials"],
+    soft: ["attention to detail", "teamwork", "safety"]
+  },
+  diesel: {
+    high: ["diesel", "mechanic", "diagnostics", "preventive maintenance", "troubleshooting", "repair", "inspection", "hand tools"],
+    medium: ["brakes", "hydraulics", "heavy equipment", "equipment inspection", "documentation"],
+    soft: ["safety", "communication", "problem solving"]
+  },
+  construction: {
+    high: ["construction", "hand tools", "power tools", "measuring", "installation", "job site safety", "materials"],
+    medium: ["carpentry", "framing", "doors", "trim", "millwork", "cleanup", "blueprints"],
+    soft: ["teamwork", "attendance", "communication"]
+  },
+  security: {
+    high: ["security", "patrol", "access control", "incident reports", "surveillance", "observation", "emergency response"],
+    medium: ["de-escalation", "professionalism", "customer service", "documentation", "safety"],
+    soft: ["communication", "reliable", "attention to detail"]
+  },
+  janitorial: {
+    high: ["cleaning", "sanitation", "janitorial", "custodial", "trash removal", "restrooms", "supplies"],
+    medium: ["floor care", "housekeeping", "safety", "attention to detail"],
+    soft: ["reliable", "time management", "teamwork"]
+  },
+  hospitality: {
+    high: ["front desk", "hotel", "guest service", "reservations", "check-in", "check-out", "customer service"],
+    medium: ["problem solving", "phone calls", "professionalism", "attention to detail"],
+    soft: ["communication", "organization", "reliable"]
+  },
+  food_service: {
+    high: ["restaurant", "customer service", "orders", "POS", "food safety", "sanitation", "teamwork"],
+    medium: ["server", "cook", "food prep", "kitchen", "recipes", "inventory", "fast-paced"],
+    soft: ["communication", "time management", "reliable"]
+  },
+  healthcare_support: {
+    high: ["patient care", "vital signs", "ADLs", "infection control", "documentation", "HIPAA", "safety"],
+    medium: ["CNA", "medical assistant", "EKG", "phlebotomy", "blood draw", "specimen collection", "compassion"],
+    soft: ["teamwork", "communication", "attention to detail"]
+  },
+  it_helpdesk: {
+    high: ["IT help desk", "technical support", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset"],
+    medium: ["customer service", "documentation", "network security", "cybersecurity", "incident response", "monitoring"],
+    soft: ["communication", "problem solving", "attention to detail"]
+  },
+  apprenticeship: {
+    high: ["willingness to learn", "hands-on", "training", "safety", "attendance", "teamwork"],
+    medium: ["tools", "communication", "problem solving", "reliable"],
+    soft: ["long-term", "career", "professionalism"]
+  }
+};
+
+const jobTypeKeywordRules = {
+  warehouse_associate: { high: ["warehouse", "order picking", "RF scanner", "shipping", "receiving", "inventory", "pallet jack", "material handling"], medium: ["picking", "packing", "loading", "unloading", "scanning"] },
+  forklift_operator: { high: ["forklift", "equipment inspection", "loading", "unloading", "pallets", "warehouse", "safety"], medium: ["shipping", "receiving", "inventory", "material handling"] },
+  machine_operator: { high: ["machine operation", "equipment monitoring", "quality checks", "troubleshooting", "setup", "restarts", "manufacturing", "safety"], medium: ["production flow", "changeovers", "material handling", "12-hour shifts"] },
+  customer_service_representative: { high: ["customer service", "customer support", "communication", "problem solving", "documentation", "de-escalation"], medium: ["phone etiquette", "CRM", "active listening", "customer satisfaction"] },
+  data_entry_clerk: { high: ["data entry", "typing", "accuracy", "attention to detail", "records", "spreadsheets"], medium: ["Microsoft Office", "clerical", "documentation"] },
+  certified_nursing_assistant: { high: ["CNA", "patient care", "vital signs", "ADLs", "infection control", "documentation", "HIPAA"], medium: ["compassion", "safety", "teamwork"] },
+  security_officer: { high: ["security", "patrol", "access control", "incident reports", "surveillance", "observation"], medium: ["emergency response", "de-escalation", "customer service"] },
+  maintenance_technician: { high: ["maintenance", "troubleshooting", "repair", "preventive maintenance", "work orders", "hand tools", "power tools"], medium: ["electrical", "plumbing", "equipment repair"] },
+  remote_customer_support_representative: { high: ["remote", "customer support", "chat support", "email support", "phone support", "documentation", "typing"], medium: ["CRM", "work from home", "problem solving"] },
+  it_help_desk_technician: { high: ["IT help desk", "technical support", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset"], medium: ["customer service", "documentation"] }
+};
+
+const importanceWeights = { high: 5, medium: 3, soft: 1, helpful: 2 };
+const matchCredits = { exact: 1, related: 0.72, weak: 0.42, missing: 0 };
+
+const phraseBank = [...new Set([
+  ...Object.keys(relatedKeywordMap),
+  ...Object.values(presetKeywords).flat(),
+  "production flow", "rotating shifts", "12-hour shifts", "stable work history", "strong attendance", "team environment",
+  "customer satisfaction", "active listening", "scheduling", "calendar", "records", "organization", "confidentiality",
+  "route planning", "equipment inspection", "shop safety", "job site safety", "heavy equipment", "floor care",
+  "reservations", "check-in", "check-out", "food prep", "meal prep", "mobility assistance", "specimen collection",
+  "chairside assistance", "medication administration", "care plans", "patient education", "claims", "insurance",
+  "accounts payable", "accounts receivable", "reconciliation", "employee records", "risk assessment", "vulnerability"
+])];
+
 const demoResume = `Harold Hilton Jr.
 Aiken, SC | 803-357-1978 | haroldhiltonjr@gmail.com
 
@@ -127,7 +490,12 @@ Requirements:
 - Stable work history, strong attendance, safety mindset, and ability to work in a team environment.`;
 
 function normalize(text) {
-  return text.toLowerCase().replace(/[^a-z0-9+.#\-\s]/g, " ").replace(/\s+/g, " ").trim();
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[–—]/g, "-")
+    .replace(/[^a-z0-9+.#@%/$\-\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function tokenize(text) {
@@ -137,173 +505,241 @@ function tokenize(text) {
 }
 
 function phraseInText(phrase, text) {
-  return normalize(text).includes(normalize(phrase));
+  const normalizedPhrase = normalize(phrase);
+  const normalizedText = normalize(text);
+  if (!normalizedPhrase) return false;
+
+  if (normalizedPhrase.length <= 3 || /^[a-z0-9+.#-]+$/.test(normalizedPhrase)) {
+    return new RegExp(`(^|\\s)${escapeRegExp(normalizedPhrase)}(\\s|$)`, "i").test(normalizedText);
+  }
+
+  return normalizedText.includes(normalizedPhrase);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function relatedTermsFor(keyword) {
+  const normalized = normalize(keyword);
+  const direct = relatedKeywordMap[keyword] || relatedKeywordMap[normalized] || [];
+  const reverse = Object.entries(relatedKeywordMap)
+    .filter(([, related]) => related.some(term => normalize(term) === normalized))
+    .map(([canonical]) => canonical);
+  return [...new Set([...direct, ...reverse])];
+}
+
+function getKeywordMatch(keyword, resumeText) {
+  if (phraseInText(keyword, resumeText)) {
+    return { status: "exact", matchedBy: keyword };
+  }
+
+  const related = relatedTermsFor(keyword);
+  const matchedRelated = related.find(term => phraseInText(term, resumeText));
+  if (matchedRelated) {
+    return { status: "related", matchedBy: matchedRelated };
+  }
+
+  return { status: "missing", matchedBy: null };
+}
+
+
+function uniqueList(items) {
+  return [...new Set((items || []).filter(Boolean))];
+}
+
+function keywordRulesFor(jobType) {
+  const family = getJobFamily(jobType);
+  const familyRules = familyKeywordRules[family] || familyKeywordRules.general;
+  const directRules = jobTypeKeywordRules[jobType] || {};
+  return {
+    high: uniqueList([...(familyRules.high || []), ...(directRules.high || [])]),
+    medium: uniqueList([...(familyRules.medium || []), ...(directRules.medium || [])]),
+    soft: uniqueList([...(familyRules.soft || []), ...(directRules.soft || [])])
+  };
+}
+
+function ruleImportance(term, jobType) {
+  const normalizedTerm = normalize(term);
+  const rules = keywordRulesFor(jobType);
+  if (rules.high.some(item => normalize(item) === normalizedTerm)) return "high";
+  if (rules.medium.some(item => normalize(item) === normalizedTerm)) return "medium";
+  if (rules.soft.some(item => normalize(item) === normalizedTerm)) return "soft";
+  return null;
+}
+
+function strongerImportance(current, next) {
+  const rank = { high: 3, medium: 2, helpful: 1, soft: 0 };
+  return (rank[next] || 0) > (rank[current] || 0) ? next : current;
+}
+
+function keywordImportance(term, jobText, jobType, forcedImportance = null) {
+  if (forcedImportance) return forcedImportance;
+
+  const ruleMatch = ruleImportance(term, jobType);
+  if (ruleMatch) return ruleMatch;
+
+  const normalizedTerm = normalize(term);
+  const job = normalize(jobText);
+  const exactCount = normalizedTerm ? job.split(normalizedTerm).length - 1 : 0;
+  const isPhrase = term.includes(" ") || phraseBank.some(item => normalize(item) === normalizedTerm);
+  const strongTerms = [
+    "license", "certification", "certified", "CDL", "DOT", "forklift", "RF scanner", "safety", "quality", "customer service",
+    "data entry", "typing", "welding", "electrical", "HVAC", "plumbing", "patient care", "HIPAA", "machine operation",
+    "material handling", "maintenance", "troubleshooting", "inventory", "shipping", "receiving", "work orders", "technical support",
+    "security", "patrol", "access control", "cash handling", "POS", "medical coding", "medical billing", "cybersecurity"
+  ];
+  const isStrong = strongTerms.some(item => normalize(item) === normalizedTerm || normalizedTerm.includes(normalize(item)));
+
+  if (isStrong || exactCount > 1) return "high";
+  if (isPhrase) return "medium";
+  return "helpful";
+}
+
+function keywordWeight(importance) {
+  return importanceWeights[importance] || importanceWeights.helpful;
+}
+
+function addKeyword(map, term, reason, jobText, jobType, forcedImportance = null) {
+  const clean = String(term || "").trim();
+  const normalized = normalize(clean);
+  if (!normalized || stopWords.has(normalized) || normalized.length < 3) return;
+  if (/^\d+$/.test(normalized)) return;
+  if (["required", "preferred", "duties", "responsibilities", "position", "company", "ability"].includes(normalized)) return;
+
+  const importance = keywordImportance(clean, jobText, jobType, forcedImportance);
+  const existing = map.get(normalized);
+
+  if (!existing) {
+    map.set(normalized, {
+      term: clean,
+      importance,
+      weight: keywordWeight(importance),
+      reasons: new Set([reason])
+    });
+    return;
+  }
+
+  existing.reasons.add(reason);
+  existing.importance = strongerImportance(existing.importance, importance);
+  existing.weight = keywordWeight(existing.importance);
+}
+
+function addRuleKeywords(map, jobText, jobType) {
+  const rules = keywordRulesFor(jobType);
+
+  rules.high.forEach(term => addKeyword(map, term, "high-priority job type skill", jobText, jobType, "high"));
+  rules.medium.forEach(term => addKeyword(map, term, "job type skill", jobText, jobType, "medium"));
+
+  // Soft skills are only added when the job post actually asks for them. This keeps the report from feeling generic.
+  rules.soft
+    .filter(term => phraseInText(term, jobText) || relatedTermsFor(term).some(related => phraseInText(related, jobText)))
+    .forEach(term => addKeyword(map, term, "job post soft skill", jobText, jobType, "soft"));
 }
 
 function extractImportantKeywords(jobText, jobType) {
+  const keywords = new Map();
+  const preset = presetKeywords[jobType] || presetKeywords.general;
+
+  addRuleKeywords(keywords, jobText, jobType);
+
+  preset.forEach(term => {
+    const forced = ruleImportance(term, jobType) || "medium";
+    addKeyword(keywords, term, "selected job type", jobText, jobType, forced);
+  });
+
+  phraseBank
+    .filter(phrase => phraseInText(phrase, jobText))
+    .forEach(phrase => addKeyword(keywords, phrase, "job post phrase", jobText, jobType));
+
   const tokens = tokenize(jobText);
   const counts = new Map();
   tokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
 
-  const topWords = [...counts.entries()]
+  [...counts.entries()]
+    .filter(([word]) => word.length > 3 && !stopWords.has(word))
+    .filter(([word]) => !/^(apply|online|benefits|schedule|needed|needed|plus|bonus|paid|training)$/i.test(word))
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 28)
-    .map(([word]) => word);
+    .slice(0, 16)
+    .forEach(([word]) => addKeyword(keywords, word, "frequent job-post word", jobText, jobType));
 
-  const phraseBank = [
-    "customer service",
-    "problem solving",
-    "phone etiquette",
-    "customer support",
-    "CRM",
-    "de-escalation",
-    "active listening",
-    "customer satisfaction",
-    "data entry",
-    "attention to detail",
-    "Microsoft Office",
-    "computer skills",
-    "administrative assistant",
-    "office support",
-    "phone calls",
-    "front desk",
-    "greeting visitors",
-    "call center",
-    "phone support",
-    "high call volume",
-    "chat support",
-    "email support",
-    "work from home",
-    "office assistant",
-    "product knowledge",
-    "follow up",
-    "sales goals",
-    "cash handling",
-    "POS",
-    "store operations",
-    "sales floor",
-    "pallet jack",
-    "RF scanner",
-    "order picking",
-    "material handling",
-    "package handling",
-    "fast-paced",
-    "equipment inspection",
-    "safe driving",
-    "proof of delivery",
-    "time management",
-    "truck driver",
-    "CDL",
-    "DOT",
-    "pre-trip",
-    "post-trip",
-    "route planning",
-    "hours of service",
-    "machine operation",
-    "equipment monitoring",
-    "quality checks",
-    "quality control",
-    "production goals",
-    "hand tools",
-    "preventive maintenance",
-    "work orders",
-    "power tools",
-    "equipment repair",
-    "apartment maintenance",
-    "property maintenance",
-    "HVAC",
-    "NEC",
-    "blueprint reading",
-    "shop safety",
-    "quality inspection",
-    "MIG",
-    "TIG",
-    "heavy equipment",
-    "job site safety",
-    "access control",
-    "incident reports",
-    "emergency response",
-    "trash removal",
-    "floor care",
-    "guest service",
-    "check-in",
-    "check-out",
-    "food safety",
-    "food prep",
-    "CNA",
-    "certified nursing assistant",
-    "patient care",
-    "vital signs",
-    "infection control",
-    "HIPAA",
-    "medical assistant",
-    "medical records",
-    "EKG",
-    "clinical support",
-    "patient care technician",
-    "home health aide",
-    "meal prep",
-    "mobility assistance",
-    "blood draw",
-    "specimen collection",
-    "pharmacy technician",
-    "pharmacy software",
-    "dental assistant",
-    "x-rays",
-    "chairside assistance",
-    "dental records",
-    "LPN",
-    "licensed practical nurse",
-    "medication administration",
-    "care plans",
-    "RN",
-    "registered nurse",
-    "patient assessment",
-    "patient education",
-    "critical thinking",
-    "medical billing",
-    "CPT",
-    "ICD-10",
-    "payment posting",
-    "accounts receivable",
-    "medical coding",
-    "HCPCS",
-    "teacher assistant",
-    "classroom support",
-    "student supervision",
-    "lesson support",
-    "behavior support",
-    "child development",
-    "substitute teacher",
-    "classroom management",
-    "lesson plans",
-    "behavior management",
-    "accounts payable",
-    "financial records",
-    "human resources",
-    "HR assistant",
-    "employee records",
-    "IT help desk",
-    "technical support",
-    "password reset",
-    "security analyst",
-    "network security",
-    "incident response",
-    "SIEM",
-    "risk assessment"
-  ];
+  const finalList = [...keywords.values()]
+    .map(item => ({ ...item, reasons: [...item.reasons] }))
+    .sort((a, b) => {
+      if (b.weight !== a.weight) return b.weight - a.weight;
+      return a.term.localeCompare(b.term);
+    });
 
-  const phrases = phraseBank.filter(phrase => phraseInText(phrase, jobText));
-  const preset = presetKeywords[jobType] || [];
-  const combined = [...new Set([...phrases, ...preset, ...topWords])];
+  return finalList.slice(0, 54);
+}
 
-  return combined.slice(0, 42);
+function termTokens(term) {
+  return normalize(term)
+    .split(" ")
+    .filter(word => word.length > 2 && !stopWords.has(word));
+}
+
+function lightStem(word) {
+  return normalize(word)
+    .replace(/(ing|ers|er|ed|ies|s)$/i, "")
+    .trim();
+}
+
+function tokenSet(text) {
+  return new Set(tokenize(text).map(lightStem).filter(Boolean));
+}
+
+function findWeakMatch(keyword, resumeText) {
+  const words = termTokens(keyword);
+  if (!words.length) return null;
+
+  const resumeTokens = tokenSet(resumeText);
+  const matched = words.filter(word => resumeTokens.has(lightStem(word)));
+
+  if (words.length === 1) {
+    return matched.length ? matched[0] : null;
+  }
+
+  const ratio = matched.length / words.length;
+  if (matched.length >= 2 && ratio >= 0.6) return matched.join(" + ");
+
+  return null;
+}
+
+function getKeywordMatch(keyword, resumeText) {
+  if (phraseInText(keyword, resumeText)) {
+    return { status: "exact", matchedBy: keyword, confidence: 100 };
+  }
+
+  const related = relatedTermsFor(keyword);
+  const matchedRelated = related.find(term => phraseInText(term, resumeText));
+  if (matchedRelated) {
+    return { status: "related", matchedBy: matchedRelated, confidence: 75 };
+  }
+
+  const weakMatch = findWeakMatch(keyword, resumeText);
+  if (weakMatch) {
+    return { status: "weak", matchedBy: weakMatch, confidence: 45 };
+  }
+
+  return { status: "missing", matchedBy: null, confidence: 0 };
 }
 
 function analyzeResume(resumeText, jobText, jobType) {
   const keywords = extractImportantKeywords(jobText, jobType);
-  const matched = keywords.filter(keyword => phraseInText(keyword, resumeText));
-  const missing = keywords.filter(keyword => !phraseInText(keyword, resumeText));
+  const evaluated = keywords.map(keyword => {
+    const match = getKeywordMatch(keyword.term, resumeText);
+    return { ...keyword, ...match };
+  });
+
+  const exactMatched = evaluated.filter(item => item.status === "exact");
+  const relatedMatched = evaluated.filter(item => item.status === "related");
+  const weakMatched = evaluated.filter(item => item.status === "weak");
+  const matched = evaluated.filter(item => item.status !== "missing");
+  const missing = evaluated.filter(item => item.status === "missing");
+  const criticalMissing = missing.filter(item => item.importance === "high");
+  const helpfulMissing = missing.filter(item => item.importance === "medium" || item.importance === "helpful");
+  const softMissing = missing.filter(item => item.importance === "soft");
 
   const sectionChecks = [
     { name: "contact info", ok: /@|\d{3}[-.)\s]?\d{3}[-.\s]?\d{4}/i.test(resumeText) },
@@ -314,17 +750,34 @@ function analyzeResume(resumeText, jobText, jobType) {
   ];
 
   const sectionScore = Math.round((sectionChecks.filter(s => s.ok).length / sectionChecks.length) * 20);
-  const keywordScore = keywords.length ? Math.round((matched.length / keywords.length) * 70) : 0;
-  const lengthBonus = resumeText.length > 800 && resumeText.length < 5000 ? 10 : resumeText.length >= 5000 ? 5 : 0;
+  const totalWeight = evaluated.reduce((total, item) => total + item.weight, 0);
+  const earnedWeight = evaluated.reduce((total, item) => total + (item.weight * (matchCredits[item.status] || 0)), 0);
+  const keywordScore = totalWeight ? Math.round((earnedWeight / totalWeight) * 72) : 0;
+  const lengthBonus = resumeText.length > 800 && resumeText.length < 5000 ? 8 : resumeText.length >= 5000 ? 4 : 0;
   const score = Math.min(100, keywordScore + sectionScore + lengthBonus);
+  const weightedCoverage = totalWeight ? Math.round((earnedWeight / totalWeight) * 100) : 0;
 
-  return { keywords, matched, missing, sectionChecks, score };
+  return {
+    keywords,
+    evaluated,
+    exactMatched,
+    relatedMatched,
+    weakMatched,
+    matched,
+    missing,
+    criticalMissing,
+    helpfulMissing,
+    softMissing,
+    sectionChecks,
+    weightedCoverage,
+    score
+  };
 }
 
 function getScoreMessage(score) {
   if (score >= 85) return "Strong match. Clean up the red flags, then apply.";
-  if (score >= 70) return "Good base. Add the missing keywords naturally before applying.";
-  if (score >= 50) return "Decent start, but the resume may look too generic for this job post.";
+  if (score >= 70) return "Good base. Add the high-priority missing keywords naturally before applying.";
+  if (score >= 50) return "Decent start, but the resume may still look too generic for this job post.";
   return "Weak match. The job post and resume are not speaking the same language yet.";
 }
 
@@ -332,10 +785,22 @@ function buildRedFlags(resumeText, jobText, analysis) {
   const flags = [];
   const lowerResume = resumeText.toLowerCase();
 
-  if (analysis.missing.length > 12) {
+  if (analysis.criticalMissing.length >= 5) {
+    flags.push("<strong>High-priority keywords missing:</strong> the resume is missing several important words or skills from the job post.");
+  }
+  if (analysis.missing.length > 14) {
     flags.push("<strong>Too many missing keywords:</strong> the resume may not match the job post closely enough.");
   }
-  if (!/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|20\d{2}|present)\b/i.test(resumeText)) {
+  if (analysis.relatedMatched.length > analysis.exactMatched.length && analysis.relatedMatched.length > 3) {
+    flags.push("<strong>Related matches found:</strong> your resume shows similar experience, but adding the employer's exact wording could make it stronger.");
+  }
+  if (analysis.weakMatched?.length >= 3) {
+    flags.push("<strong>Weak matches found:</strong> the resume has partial proof for some skills, but the wording is not clear enough yet.");
+  }
+  if (analysis.weightedCoverage < 55) {
+    flags.push("<strong>Low keyword confidence:</strong> the strongest job-specific skills are not showing clearly enough in the resume.");
+  }
+  if (!/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|20\d{2}|present)\b/i.test(resumeText)) {
     flags.push("<strong>Missing dates:</strong> add month/year dates so the work history looks complete.");
   }
   if ((lowerResume.match(/present/g) || []).length > 1) {
@@ -344,10 +809,10 @@ function buildRedFlags(resumeText, jobText, analysis) {
   if (!/\d|percent|%|hour|shift|positions|equipment|machines/i.test(resumeText)) {
     flags.push("<strong>No measurable proof:</strong> add numbers like equipment count, shift length, production rate, or years of experience.");
   }
-  if (/fast[-\s]?paced/i.test(jobText) && !/fast[-\s]?paced/i.test(resumeText)) {
-    flags.push("<strong>Fast-paced missing:</strong> the job asks for fast-paced work, but the resume does not clearly say it.");
+  if (/fast[-\s]?paced/i.test(jobText) && !/fast[-\s]?paced|high volume|production flow|busy environment/i.test(resumeText)) {
+    flags.push("<strong>Fast-paced missing:</strong> the job asks for fast-paced work, but the resume does not clearly show it.");
   }
-  if (/safety/i.test(jobText) && !/safety/i.test(resumeText)) {
+  if (/safety/i.test(jobText) && !/safety|safe|PPE|procedures/i.test(resumeText)) {
     flags.push("<strong>Safety missing:</strong> safety is in the job post, so it should be visible in your resume.");
   }
   if (resumeText.length < 700) {
@@ -424,8 +889,8 @@ function getJobFamily(jobType) {
 }
 
 function buildSummary(jobType, analysis) {
-  const strengths = analysis.matched.slice(0, 6);
-  const needs = analysis.missing.slice(0, 4);
+  const strengths = analysis.matched.slice(0, 6).map(item => item.term);
+  const needs = analysis.criticalMissing.slice(0, 4).map(item => item.term);
   const typeLine = {
     general: "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.",
     manufacturing: "Reliable industrial and manufacturing worker with hands-on experience in machine operation, production support, equipment monitoring, safety procedures, and quality checks.",
@@ -450,18 +915,16 @@ function buildSummary(jobType, analysis) {
     it_helpdesk: "Entry-level IT help desk candidate with troubleshooting ability, customer service skills, documentation habits, computer knowledge, and willingness to learn technical systems.",
     janitorial: "Janitorial and custodial candidate with cleaning experience, attention to detail, safety awareness, sanitation habits, reliability, and pride in maintaining professional spaces.",
     call_center: "Call center and dispatch candidate with phone communication, typing, documentation, customer service, scheduling, problem solving, and ability to handle high-volume work.",
-    apprenticeship: "Motivated trade apprenticeship candidate with hands-on work experience, strong attendance, safety awareness, and willingness to learn a long-term skilled career.",
-    rail: "Rail and industrial candidate with safety awareness, equipment inspection habits, material handling experience, production background, and strong team communication."
+    apprenticeship: "Motivated trade apprenticeship candidate with hands-on work experience, strong attendance, safety awareness, and willingness to learn a long-term skilled career."
   }[getJobFamily(jobType)] || "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.";
 
-  return `${typeLine} Experienced working in fast-paced environments, following instructions, supporting production goals, and learning new equipment or processes. Key strengths for this role include ${strengths.length ? strengths.join(", ") : "safety, reliability, teamwork, and problem solving"}. Add honest proof for these job-post keywords if they apply: ${needs.length ? needs.join(", ") : "no major missing keywords found"}.`;
+  return `${typeLine} Experienced working in fast-paced environments, following instructions, supporting production goals, and learning new equipment or processes. Smart keyword coverage is ${analysis.weightedCoverage}%. Key strengths for this role include ${strengths.length ? strengths.join(", ") : "safety, reliability, teamwork, and problem solving"}. Add honest proof for these high-priority keywords if they apply: ${needs.length ? needs.join(", ") : "no major high-priority keyword gaps found"}.`;
 }
 
 function buildBullets(jobType, analysis) {
-  const missing = analysis.missing.slice(0, 8);
-  const matched = analysis.matched.slice(0, 8);
+  const missing = analysis.criticalMissing.slice(0, 8).map(item => item.term);
+  const matched = analysis.matched.slice(0, 8).map(item => item.term);
   const base = {
-    general: ["Worked in a team environment while following company procedures, safety rules, and daily expectations.", "Learned new tasks quickly and supported supervisors by staying reliable, organized, and ready to help where needed."],
     manufacturing: ["Operated and monitored manufacturing equipment in a fast-paced production environment while following safety and quality standards.", "Completed machine setup, cleaning, restarts, material handling, and basic troubleshooting to keep production moving.", "Performed quality checks and communicated issues early to reduce downtime and protect production flow."],
     warehouse: ["Moved, loaded, unloaded, picked, packed, and organized materials while following warehouse safety procedures.", "Used warehouse equipment and inventory processes to support shipping, receiving, order picking, and daily production goals.", "Maintained accuracy, speed, and attention to detail in a fast-paced warehouse environment."],
     maintenance: ["Assisted with repair, troubleshooting, installation, and preventive maintenance tasks using hand tools and power tools safely.", "Completed work order support by identifying issues, following instructions, and keeping work areas clean and safe.", "Supported basic electrical, mechanical, plumbing, and building repair tasks with attention to safety and quality."],
@@ -473,10 +936,9 @@ function buildBullets(jobType, analysis) {
     welding: ["Supported welding and fabrication work through measuring, cutting, grinding, fitting, setup, and shop cleanup.", "Followed safety and quality expectations while using tools and preparing materials for fabrication tasks.", "Read instructions, checked measurements, and inspected work to reduce mistakes and rework."],
     diesel: ["Assisted with mechanical inspections, preventive maintenance, troubleshooting, repair support, and tool preparation.", "Followed safety procedures while working around vehicles, equipment, parts, and shop tools.", "Documented issues clearly and supported technicians with diagnostics, cleaning, parts movement, and repair tasks."],
     security: ["Patrolled assigned areas, monitored activity, observed safety concerns, and documented incidents professionally.", "Provided customer service while enforcing site rules, access control procedures, and emergency response expectations.", "Maintained calm communication and professionalism during conflict, questions, or unusual activity."],
-    remote: ["Provided remote customer support through chat, email, phone, documentation, and problem-solving steps.", "Used computer skills, typing, CRM-style tools, and clear communication to help customers and track issues.", "Worked independently while staying organized, responsive, and accurate in a work-from-home setting."],
-    dataentry: ["Entered, reviewed, and organized data with accuracy, attention to detail, and consistent typing habits.", "Maintained records, spreadsheets, files, and documentation while following office procedures.", "Checked information for errors and communicated missing or unclear details before submission."],
     customer_service: ["Helped customers by listening, answering questions, solving problems, and documenting support details clearly.", "Used professional communication and patience to de-escalate issues and protect customer satisfaction.", "Worked in a fast-paced environment while staying organized, respectful, and focused on solutions."],
     admin: ["Supported office operations through scheduling, email, phone calls, filing, data entry, and record management.", "Used organization and communication skills to keep daily tasks, calendars, and documents accurate.", "Assisted teams and customers by following procedures, tracking information, and handling details professionally."],
+    dataentry: ["Entered, reviewed, and organized data with accuracy, attention to detail, and consistent typing habits.", "Maintained records, spreadsheets, files, and documentation while following office procedures.", "Checked information for errors and communicated missing or unclear details before submission."],
     sales_retail: ["Provided customer service, product support, sales assistance, cash handling, and store operations support.", "Maintained inventory, merchandising, cleanliness, and teamwork in a customer-facing retail environment.", "Used communication and product knowledge to answer questions, recommend items, and support sales goals."],
     food_service: ["Supported food service operations through customer service, food prep, cleaning, sanitation, and teamwork.", "Worked in a fast-paced restaurant environment while following food safety, accuracy, and service standards.", "Handled orders, POS tasks, stocking, and cleaning while helping the team meet rush-hour demand."],
     hospitality: ["Provided guest service through check-in support, reservations, issue resolution, and professional communication.", "Supported hotel or hospitality operations by keeping areas clean, organized, and ready for guests.", "Handled guest questions and concerns with patience, accuracy, and attention to detail."],
@@ -484,8 +946,7 @@ function buildBullets(jobType, analysis) {
     it_helpdesk: ["Provided technical support by troubleshooting user issues, documenting tickets, and following step-by-step procedures.", "Helped resolve hardware, software, login, password, and basic network problems with clear communication.", "Used customer service skills and technical learning ability to support users remotely or in person."],
     janitorial: ["Cleaned, sanitized, stocked, and maintained assigned areas while following safety and quality standards.", "Completed floor care, trash removal, restroom cleaning, and housekeeping tasks with attention to detail.", "Kept work areas organized and communicated supply or maintenance issues when needed."],
     call_center: ["Handled calls, messages, scheduling, dispatch, documentation, and customer questions in a high-volume environment.", "Used phone etiquette, typing, CRM-style tools, and clear communication to track and resolve issues.", "Remained calm and organized while helping customers, drivers, technicians, or internal teams."],
-    apprenticeship: ["Showed strong willingness to learn by taking on hands-on tasks, following training, and improving through repetition.", "Built real work experience in fast-paced environments requiring reliability, attendance, safety, and teamwork.", "Supported daily operations by staying flexible, learning new responsibilities, and helping the team meet goals."],
-    rail: ["Supported rail or industrial operations with safety awareness, equipment checks, material handling, and team communication.", "Followed procedures around railcars, yard activity, machinery, and production tasks to protect safety and efficiency.", "Communicated hazards, issues, and work progress clearly in a fast-paced industrial environment."]
+    apprenticeship: ["Showed strong willingness to learn by taking on hands-on tasks, following training, and improving through repetition.", "Built real work experience in fast-paced environments requiring reliability, attendance, safety, and teamwork.", "Supported daily operations by staying flexible, learning new responsibilities, and helping the team meet goals."]
   }[getJobFamily(jobType)] || [
     "Worked in a team environment while following company procedures, safety rules, and daily expectations.",
     "Learned new tasks quickly and supported supervisors by staying reliable, organized, and ready to help where needed.",
@@ -493,21 +954,109 @@ function buildBullets(jobType, analysis) {
   ];
 
   const keywordBullet = missing.length
-    ? `Add honest examples that show these job-post keywords if they apply: ${missing.join(", ")}.`
-    : `Your resume already includes strong matches like ${matched.join(", ")}. Strengthen them with numbers and examples.`;
+    ? `Add honest examples that show these high-priority job-post keywords if they apply: ${missing.join(", ")}.`
+    : `Your resume already covers strong matches like ${matched.join(", ")}. Strengthen them with numbers and examples.`;
 
   return [...base, keywordBullet].map(item => `• ${item}`).join("\n");
 }
 
-function renderChips(container, items) {
-  container.innerHTML = "";
-  const list = items.length ? items : ["No items found"];
+
+function keywordDisplay(item) {
+  if (typeof item === "string") return item;
+  if (item.status === "related") return `${item.term} ≈ ${item.matchedBy}`;
+  if (item.status === "weak") return `${item.term} ~ ${item.matchedBy}`;
+  return item.term;
+}
+
+function keywordDetails(item) {
+  if (typeof item === "string") return "";
+  const importanceLabel = item.importance === "high" ? "High priority" : item.importance === "medium" ? "Medium priority" : item.importance === "soft" ? "Soft skill" : "Helpful";
+  const matchLabel = item.status === "exact" ? "Exact match" : item.status === "related" ? `Related match: ${item.matchedBy}` : item.status === "weak" ? `Weak/partial match: ${item.matchedBy}` : "Missing";
+  return `${importanceLabel} • ${matchLabel} • Confidence: ${item.confidence || 0}%`;
+}
+
+function renderKeywordGroup(container, title, items, note = "") {
+  const group = document.createElement("div");
+  group.style.width = "100%";
+  group.style.marginBottom = "16px";
+
+  const heading = document.createElement("h4");
+  heading.textContent = title;
+  heading.style.margin = "0 0 6px";
+  heading.style.fontSize = "0.98rem";
+  heading.style.color = "#f4f7fb";
+  group.appendChild(heading);
+
+  if (note) {
+    const noteEl = document.createElement("p");
+    noteEl.textContent = note;
+    noteEl.style.margin = "0 0 10px";
+    noteEl.style.color = "#a7b0bf";
+    noteEl.style.fontSize = "0.92rem";
+    noteEl.style.lineHeight = "1.45";
+    group.appendChild(noteEl);
+  }
+
+  const chips = document.createElement("div");
+  chips.style.display = "flex";
+  chips.style.flexWrap = "wrap";
+  chips.style.gap = "10px";
+
+  const list = items.length ? items : ["Nothing found here"];
   list.slice(0, 18).forEach(item => {
     const chip = document.createElement("span");
     chip.className = "chip";
-    chip.textContent = item;
-    container.appendChild(chip);
+    chip.textContent = keywordDisplay(item);
+    chip.title = keywordDetails(item);
+    if (item?.importance === "high" && item?.status === "missing") {
+      chip.style.borderColor = "rgba(255, 92, 122, 0.45)";
+      chip.style.color = "#ffc2cc";
+      chip.style.background = "rgba(255, 92, 122, 0.12)";
+    }
+    if (item?.status === "weak") {
+      chip.style.opacity = "0.86";
+    }
+    chips.appendChild(chip);
   });
+
+  group.appendChild(chips);
+  container.appendChild(group);
+}
+
+function renderMissingKeywords(container, analysis) {
+  container.innerHTML = "";
+  const summary = document.createElement("p");
+  summary.textContent = `Smart match: ${analysis.weightedCoverage}% weighted keyword coverage. High-priority skills count more than soft skills.`;
+  summary.style.margin = "0 0 14px";
+  summary.style.color = "#a7b0bf";
+  summary.style.lineHeight = "1.45";
+  container.appendChild(summary);
+
+  renderKeywordGroup(
+    container,
+    "High Priority Missing",
+    analysis.criticalMissing,
+    "These are the job-specific words most worth adding if they are true."
+  );
+  renderKeywordGroup(
+    container,
+    "Helpful Keywords to Add",
+    analysis.helpfulMissing,
+    "These can improve the match, but they do not matter as much as the high-priority skills."
+  );
+  renderKeywordGroup(
+    container,
+    "Soft Skills Missing",
+    analysis.softMissing,
+    "These only show up when the job post asks for them."
+  );
+}
+
+function renderMatchedKeywords(container, analysis) {
+  container.innerHTML = "";
+  renderKeywordGroup(container, "Exact Matches", analysis.exactMatched, "The resume already uses the employer's wording.");
+  renderKeywordGroup(container, "Related Matches", analysis.relatedMatched, "The resume says something close. Using the employer's exact wording may help.");
+  renderKeywordGroup(container, "Weak / Partial Matches", analysis.weakMatched, "The resume has partial proof, but the wording could be clearer.");
 }
 
 function analyzeAndRender() {
@@ -528,8 +1077,8 @@ function analyzeAndRender() {
   document.getElementById("scoreMessage").textContent = getScoreMessage(analysis.score);
   document.getElementById("scoreBar").style.width = `${analysis.score}%`;
 
-  renderChips(document.getElementById("missingKeywords"), analysis.missing);
-  renderChips(document.getElementById("matchedKeywords"), analysis.matched);
+  renderMissingKeywords(document.getElementById("missingKeywords"), analysis);
+  renderMatchedKeywords(document.getElementById("matchedKeywords"), analysis);
 
   const flags = buildRedFlags(resumeText, jobText, analysis);
   document.getElementById("redFlags").innerHTML = flags.map(flag => `<li>${flag}</li>`).join("");
@@ -638,6 +1187,8 @@ function setAuthMode(mode) {
   const resetBtn = document.getElementById("passwordResetBtn");
   const switchText = document.getElementById("authSwitchText");
 
+  if (!title || !eyebrow || !help || !nameField || !nameInput || !passwordInput || !submitBtn || !resetBtn || !switchText) return;
+
   if (authMode === "create") {
     eyebrow.textContent = "Create account";
     title.textContent = "Create your free account";
@@ -667,9 +1218,7 @@ function setAuthMode(mode) {
 
 function formatAuthError(error) {
   const code = error?.code || "";
-  if (code.includes("invalid-credential") || code.includes("wrong-password")) {
-    return "That email/password did not work. If this is your first time, tap Create account first.";
-  }
+  if (code.includes("invalid-credential") || code.includes("wrong-password")) return "That email/password did not work. If this is your first time, tap Create account first.";
   if (code.includes("user-not-found")) return "No account found with that email. Tap Create account first.";
   if (code.includes("email-already-in-use")) return "That email already has an account. Switch to Sign in instead.";
   if (code.includes("weak-password")) return "Password must be at least 6 characters.";
@@ -698,12 +1247,14 @@ function renderAccount() {
   const authCard = document.getElementById("authCard");
   const accountStatusCard = document.getElementById("accountStatusCard");
 
+  if (!navUser || !accountStatus || !accountNote || !trackerNote || !signOutBtn || !accountForm || !authCard || !accountStatusCard) return;
+
   if (!firebaseEnabled || !auth || !db) {
     navUser.textContent = "Account setup needed";
     authCard.hidden = false;
     accountStatusCard.hidden = true;
-    trackerNote.textContent = "You can test the analyzer now. Add Firebase to enable account saving across devices.";
-    setAuthMessage("Cloud account saving is not connected yet. The analyzer still works.", "error");
+    trackerNote.textContent = "You can test the analyzer now. Account saving is still being connected.";
+    setAuthMessage("Account saving is not connected yet. The analyzer still works.", "error");
     signOutBtn.hidden = true;
     return;
   }
@@ -725,8 +1276,10 @@ function renderAccount() {
     signOutBtn.hidden = true;
   }
 }
+
 function renderTracker() {
   const rows = document.getElementById("trackerRows");
+  if (!rows) return;
   const items = loadTracker();
   rows.innerHTML = "";
 
@@ -753,21 +1306,16 @@ async function signIn() {
   setAuthMessage("Signing in...", "");
 
   if (!firebaseEnabled || !auth || !db) {
-    const name = document.getElementById("userName").value.trim() || "Local User";
-    const email = document.getElementById("userEmail").value.trim().toLowerCase();
+    const name = document.getElementById("userName")?.value.trim() || "Local User";
+    const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
 
     if (!email) {
       setAuthMessage("Enter your email.", "error");
       return;
     }
 
-    localStorage.setItem("gmpt_current_user", JSON.stringify({
-      name,
-      email,
-      signedInAt: new Date().toISOString()
-    }));
-
-    document.getElementById("accountForm").reset();
+    localStorage.setItem("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString() }));
+    document.getElementById("accountForm")?.reset();
     renderAccount();
     renderTracker();
     returnHomeAfterAuth("Signed in.");
@@ -847,7 +1395,7 @@ async function signOut() {
   if (firebaseEnabled && auth) {
     await firebaseSignOut(auth);
     closeMenu();
-    document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
@@ -993,11 +1541,11 @@ function initAuthListener() {
   });
 }
 
-
 function openMenu(mode = null) {
   const navMenu = document.getElementById("navMenu");
   const backdrop = document.getElementById("menuBackdrop");
   const toggle = document.getElementById("menuToggle");
+  if (!navMenu || !backdrop || !toggle) return;
   if (mode) setAuthMode(mode);
   navMenu.classList.add("open");
   navMenu.setAttribute("aria-hidden", "false");
@@ -1010,6 +1558,7 @@ function closeMenu() {
   const navMenu = document.getElementById("navMenu");
   const backdrop = document.getElementById("menuBackdrop");
   const toggle = document.getElementById("menuToggle");
+  if (!navMenu || !backdrop || !toggle) return;
   navMenu.classList.remove("open");
   navMenu.setAttribute("aria-hidden", "true");
   toggle.setAttribute("aria-expanded", "false");
@@ -1020,20 +1569,20 @@ function closeMenu() {
 function returnHomeAfterAuth(message = "") {
   if (message) setAuthMessage(message, "success");
   closeMenu();
-  document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function init() {
-  document.getElementById("analyzeBtn").addEventListener("click", analyzeAndRender);
+  document.getElementById("analyzeBtn")?.addEventListener("click", analyzeAndRender);
 
-  document.getElementById("loadDemo").addEventListener("click", () => {
+  document.getElementById("loadDemo")?.addEventListener("click", () => {
     document.getElementById("resumeText").value = demoResume;
     document.getElementById("jobText").value = demoJob;
     document.getElementById("jobType").value = "machine_operator";
     document.getElementById("analyzer").scrollIntoView({ behavior: "smooth" });
   });
 
-  document.getElementById("clearBtn").addEventListener("click", () => {
+  document.getElementById("clearBtn")?.addEventListener("click", () => {
     document.getElementById("resumeText").value = "";
     document.getElementById("jobText").value = "";
     document.getElementById("results").hidden = true;
@@ -1050,28 +1599,29 @@ function init() {
     });
   });
 
-  document.getElementById("menuToggle").addEventListener("click", () => openMenu());
-  document.getElementById("menuClose").addEventListener("click", closeMenu);
-  document.getElementById("menuBackdrop").addEventListener("click", closeMenu);
+  document.getElementById("menuToggle")?.addEventListener("click", () => openMenu());
+  document.getElementById("menuClose")?.addEventListener("click", closeMenu);
+  document.getElementById("menuBackdrop")?.addEventListener("click", closeMenu);
   document.querySelectorAll("#navMenu .menu-item").forEach(link => {
     link.addEventListener("click", closeMenu);
   });
 
-  document.getElementById("accountForm").addEventListener("submit", handleAccountSubmit);
-  document.getElementById("passwordResetBtn").addEventListener("click", resetPassword);
-  document.getElementById("togglePasswordBtn").addEventListener("click", () => {
+  document.getElementById("accountForm")?.addEventListener("submit", handleAccountSubmit);
+  document.getElementById("passwordResetBtn")?.addEventListener("click", resetPassword);
+  document.getElementById("togglePasswordBtn")?.addEventListener("click", () => {
     const input = document.getElementById("userPassword");
     const button = document.getElementById("togglePasswordBtn");
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
     button.textContent = showing ? "Show" : "Hide";
   });
+
   setAuthMode("create");
-  document.getElementById("signOutBtn").addEventListener("click", signOut);
-  document.getElementById("exportTrackerBtn").addEventListener("click", exportTrackerCSV);
-  document.getElementById("clearTrackerBtn").addEventListener("click", clearTracker);
-  document.getElementById("trackerForm").addEventListener("submit", addApplication);
-  document.getElementById("trackerRows").addEventListener("click", deleteApplication);
+  document.getElementById("signOutBtn")?.addEventListener("click", signOut);
+  document.getElementById("exportTrackerBtn")?.addEventListener("click", exportTrackerCSV);
+  document.getElementById("clearTrackerBtn")?.addEventListener("click", clearTracker);
+  document.getElementById("trackerForm")?.addEventListener("submit", addApplication);
+  document.getElementById("trackerRows")?.addEventListener("click", deleteApplication);
 
   initAuthListener();
 }
