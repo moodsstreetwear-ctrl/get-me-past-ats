@@ -1,6 +1,6 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "paid-logic-v3-no-generic-copy";
+window.GMPT_APP_VERSION = "paid-logic-v4-smart-fix-checklist";
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -93,7 +93,7 @@ function term(term, aliases = [], priority = "medium") {
 
 const FAMILY_TERMS = {
   manufacturing: [
-    term("machine operation", ["machine operator", "operated machines", "operating machines", "production machines", "production equipment"], "high"),
+    term("machine operation", ["machine operator", "machine technician", "machine technicians", "operated machines", "operating machines", "production machines", "production equipment", "operate buttons", "buttons and levers"], "high"),
     term("equipment monitoring", ["monitoring equipment", "monitored equipment", "monitored machines", "monitor machines"], "high"),
     term("quality checks", ["quality inspections", "quality control", "checked parts", "defects", "parts for defects"], "high"),
     term("safety procedures", ["safety rules", "safety standards", "follow safety", "following safety"], "high"),
@@ -104,7 +104,14 @@ const FAMILY_TERMS = {
     term("material handling", ["handled materials", "handling materials", "materials", "pallets"], "medium"),
     term("loading materials", ["load materials", "loaded materials", "loading materials", "equipment loading"], "medium"),
     term("production goals", ["daily production goals", "production goals", "production rate", "production flow"], "medium"),
-    term("industrial equipment", ["industrial equipment", "manufacturing equipment"], "medium"),
+    term("industrial equipment", ["industrial equipment", "manufacturing equipment", "manufacturing plant", "manufacturing plants", "tire material", "production plant"], "medium"),
+    term("rotating swing shifts", ["rotating shifts", "swing shifts", "rotating swing shifts"], "soft"),
+    term("multiple pieces of equipment", ["multiple pieces of equipment", "operate multiple", "multiple machines", "multiple equipment"], "soft"),
+    term("stable work history", ["stable work history", "2 years of stable work history", "work history"], "soft"),
+    term("lifting 50-75 lbs", ["lift 50", "lift 75", "50 pounds", "75 pounds", "50/75", "lifting requirements"], "soft"),
+    term("manual dexterity", ["manual dexterity", "buttons", "levers", "operate buttons", "operate levers"], "soft"),
+    term("physical mobility", ["squat", "stoop", "bend", "climb", "walk", "physical mobility"], "soft"),
+    term("hot/cold work conditions", ["hot and cold", "hot & cold", "weather", "exposure to weather"], "soft"),
     term("12-hour shifts", ["12 hour shifts", "12-hour shift", "long shifts"], "soft"),
     term("team-based production", ["team members", "team based", "team-based", "production team"], "soft")
   ],
@@ -205,11 +212,14 @@ const FAMILY_TERMS = {
     term("TWIC", ["transportation worker identification"], "medium")
   ],
   security: [
-    term("security", ["security officer", "guard"], "high"),
-    term("patrols", ["patrol", "walking patrol"], "medium"),
-    term("incident reports", ["incident reporting", "reports"], "medium"),
-    term("access control", ["badge", "entrance", "visitor"], "medium"),
-    term("surveillance", ["cameras", "monitoring"], "medium")
+    term("security experience", ["security officer", "security guard", "guard", "security experience"], "high"),
+    term("patrols", ["patrol", "patrols", "walking patrol", "regular patrols", "random patrols", "perimeter"], "medium"),
+    term("incident reports", ["incident report", "incident reports", "incident reporting", "document incidents", "security reports"], "medium"),
+    term("access control", ["access control", "badge check", "badge checks", "entrance", "entry control", "visitor screening", "verify visitors"], "medium"),
+    term("surveillance cameras", ["surveillance cameras", "security cameras", "CCTV", "monitor cameras", "monitoring cameras"], "medium"),
+    term("emergency response", ["emergency response", "respond to incidents", "critical situations", "respond to safety concerns"], "medium"),
+    term("security procedures", ["security-related procedures", "site-specific policies", "security procedures", "site safety procedures"], "medium"),
+    term("security customer service", ["support patients", "support visitors", "support staff", "customer service", "communication"], "soft")
   ],
   cleaning: [
     term("cleaning", ["cleaned", "janitorial", "housekeeping"], "high"),
@@ -372,7 +382,10 @@ function getActiveTerms(jobText, family) {
   const normalizedJob = normalize(jobText);
   const familyTerms = FAMILY_TERMS[family] || [];
   const active = familyTerms.filter(item => termMatchesText(item, normalizedJob));
-  return active.length ? active : familyTerms.slice(0, 10);
+  const coreActive = active.filter(item => item.priority !== "soft");
+  if (active.length && coreActive.length >= 3) return active;
+  const baselineCore = familyTerms.filter(item => item.priority !== "soft").slice(0, 10);
+  return [...new Map([...active, ...baselineCore].map(item => [item.term, item])).values()];
 }
 
 function analyzeKeywords(resumeText, jobText, targetFamily) {
@@ -380,24 +393,33 @@ function analyzeKeywords(resumeText, jobText, targetFamily) {
   const activeTerms = getActiveTerms(jobText, targetFamily);
   let totalWeight = 0;
   let matchedWeight = 0;
+  let coreTotalWeight = 0;
+  let coreMatchedWeight = 0;
   const exactMatched = [];
   const missing = [];
 
   activeTerms.forEach(item => {
     const weight = weightFor(item.priority);
     totalWeight += weight;
+    if (item.priority !== "soft") coreTotalWeight += weight;
     if (termMatchesText(item, normalizedResume)) {
       matchedWeight += weight;
+      if (item.priority !== "soft") coreMatchedWeight += weight;
       exactMatched.push({ ...item, status: "exact", confidence: 100 });
     } else {
       missing.push({ ...item, status: "missing", confidence: 0 });
     }
   });
 
-  const score = totalWeight ? Math.round((matchedWeight / totalWeight) * 100) : 0;
+  const rawScore = totalWeight ? Math.round((matchedWeight / totalWeight) * 100) : 0;
+  const coreScore = coreTotalWeight ? Math.round((coreMatchedWeight / coreTotalWeight) * 100) : rawScore;
+  const softMissingCount = missing.filter(item => item.priority === "soft").length;
+  const score = coreScore >= 90 ? Math.max(0, coreScore - Math.min(2, softMissingCount)) : rawScore;
   return {
     activeTerms,
     score,
+    rawScore,
+    coreScore,
     exactMatched,
     missing,
     criticalMissing: missing.filter(item => item.priority === "high"),
@@ -542,7 +564,7 @@ function buildManufacturingWording(resumeText, diagnosisCategory) {
   if (hasRestarts) machineTaskParts.push("restarts");
   if (hasTroubleshooting) machineTaskParts.push("basic troubleshooting");
   if (machineTaskParts.length) {
-    bullets.push(`Completed ${joinEnglish(machineTaskParts)} to keep production equipment moving and reduce downtime.`);
+    bullets.push(`Completed ${joinEnglish(machineTaskParts)} to support steady production flow.`);
   }
   const flowParts = [];
   if (hasLoading || hasMaterial) flowParts.push("loaded and handled materials");
@@ -721,14 +743,17 @@ const FAMILY_WORDING_BLUEPRINTS = {
   },
   security: {
     title: "Security Officer",
-    summaryLead: "with safety and site-monitoring experience",
+    summaryLead: "with safety and security experience",
     skillLead: "Skilled in",
     items: {
-      "security": { summary: "supporting site safety and security", skill: "site security", bullet: "Supported site safety and security by staying alert, following procedures, and reporting concerns." },
-      "patrols": { summary: "conducting patrols", skill: "patrols", bullet: "Conducted patrols or area checks to monitor activity, identify concerns, and support a safe environment." },
-      "incident reports": { summary: "writing incident reports", skill: "incident reports", bullet: "Documented incidents, observations, or unusual activity through clear reports or required logs." },
-      "access control": { summary: "checking access points, badges, or visitors", skill: "access control", bullet: "Controlled access by checking visitors, badges, entrances, or assigned security points." },
-      "surveillance": { summary: "monitoring cameras or surveillance systems", skill: "surveillance", bullet: "Monitored cameras, surveillance systems, or assigned areas to identify and report security concerns." }
+      "security experience": { summary: "supporting site safety and security", skill: "site security", bullet: "Supported site safety and security by staying alert, following procedures, and reporting concerns." },
+      "patrols": { summary: "conducting patrols", skill: "patrols", bullet: "Conducted patrols to monitor assigned areas, identify concerns, and support a safe environment." },
+      "incident reports": { summary: "writing incident reports", skill: "incident reports", bullet: "Documented incidents, observations, or unusual activity through clear incident reports or security logs." },
+      "access control": { summary: "supporting access control and visitor screening", skill: "access control and visitor screening", bullet: "Controlled access by checking entrances, visitors, or assigned access points." },
+      "surveillance cameras": { summary: "monitoring surveillance cameras or security systems", skill: "surveillance cameras", bullet: "Monitored surveillance cameras or security systems to identify and report security concerns." },
+      "emergency response": { summary: "responding to incidents or emergency situations", skill: "incident response", bullet: "Responded to incidents or safety concerns in a calm, professional manner." },
+      "security procedures": { summary: "following site-specific security procedures", skill: "security procedures", bullet: "Followed security-related procedures and site-specific policies during assigned duties." },
+      "security customer service": { summary: "supporting patients, visitors, staff, or clients with professional communication", skill: "security-related customer service", bullet: "Supported patients, visitors, staff, or clients with professional communication while maintaining site awareness." }
     }
   },
   cleaning: {
@@ -795,10 +820,8 @@ const FAMILY_WORDING_BLUEPRINTS = {
   }
 };
 
-function titleForWording(selectedLabel, family) {
-  const safe = text(selectedLabel).trim();
-  if (safe && safe !== "General / Any Job") return safe;
-  return FAMILY_WORDING_BLUEPRINTS[family]?.title || FAMILY_LABELS[family] || "Worker";
+function titleForWording(selectedLabel, family, diagnosisCategory = "strong_match", resumeText = "") {
+  return safeResumeTitle(resumeText, family, selectedLabel, diagnosisCategory);
 }
 
 // V3: copy-ready resume wording cannot contain app/system language.
@@ -827,6 +850,144 @@ function outputHasBannedCopyLanguage(output) {
   if (!output) return true;
   if (containsBannedCopyLanguage(output.summary)) return true;
   return (output.bullets || []).some(containsBannedCopyLanguage);
+}
+
+
+// V4: smart fix checklist, realistic score caps, and safer medium-match titles.
+const FAMILY_PROOF_GAPS = {
+  manufacturing: ["machine operation", "equipment monitoring", "quality checks", "safety procedures", "material handling", "machine setup", "basic troubleshooting", "rotating swing shifts", "multiple pieces of equipment", "stable work history"],
+  warehouse: ["warehouse operations", "loading and unloading", "material handling", "shipping and receiving", "inventory organization", "pallet jack", "RF scanner", "warehouse safety"],
+  healthcare: ["active license or certification", "patient care", "ADLs", "vital signs", "HIPAA", "infection control", "charting", "clinical experience"],
+  healthcare_admin: ["medical billing", "medical coding", "medical records", "EHR/EMR", "HIPAA", "claims", "insurance"],
+  maintenance: ["work orders", "preventive maintenance", "service requests", "troubleshooting", "plumbing", "HVAC", "appliance repair", "electrical repairs"],
+  electrical: ["electrical wiring", "outlets", "switches", "fixtures", "troubleshooting", "conduit", "panels", "jobsite safety"],
+  welding: ["welding", "fabrication", "MIG", "TIG", "grinding", "cutting", "blueprints", "shop safety"],
+  diesel: ["diesel engines", "diagnostics", "preventive maintenance", "brakes", "hydraulics", "heavy equipment", "inspections", "shop safety"],
+  construction: ["construction", "carpentry", "hand and power tools", "installation", "measuring and cutting", "jobsite safety"],
+  customer_service: ["phone support", "email support", "CRM", "customer accounts", "complaint resolution", "POS", "returns", "service notes"],
+  office: ["data entry", "records", "filing", "scheduling", "Microsoft Office", "Excel", "email", "phone calls"],
+  driving: ["CDL", "DOT", "pre-trip inspection", "post-trip inspection", "route planning", "dispatch communication", "delivery paperwork", "safe driving"],
+  security: ["security experience", "patrols", "access control", "visitor screening", "incident reports", "emergency response", "surveillance cameras", "security procedures", "guard card/security license if required"],
+  cleaning: ["cleaning", "sanitation", "trash removal", "restocking supplies", "floor care", "safety procedures"],
+  food_service: ["food preparation", "food safety", "sanitation", "orders", "customer service", "cash handling", "stocking"],
+  education: ["student support", "classroom support", "lesson support", "behavior management", "supervision", "documentation"],
+  it: ["technical support", "troubleshooting", "tickets", "Windows", "password resets", "hardware", "software", "networking", "documentation"]
+};
+
+const FAMILY_STRENGTHENING_ADVICE = {
+  manufacturing: "real machine operation, production equipment, quality checks, safety procedures, material handling, shift details, or manufacturing duties",
+  warehouse: "real warehouse duties such as loading, unloading, pallet jack use, shipping, receiving, inventory, RF scanner use, or forklift experience",
+  healthcare: "real healthcare training, certification, clinical experience, patient care, charting, HIPAA, vital signs, or license proof",
+  healthcare_admin: "real medical office training, billing, coding, claims, insurance, medical records, EHR/EMR, or HIPAA experience",
+  maintenance: "real maintenance duties such as work orders, preventive maintenance, service requests, repairs, troubleshooting, plumbing, HVAC, appliance repair, or electrical repair",
+  electrical: "real electrical training, wiring, outlets, switches, fixtures, conduit, panels, troubleshooting, or supervised electrical work",
+  welding: "real welding training, MIG/TIG, fabrication, cutting, grinding, blueprint reading, or shop work",
+  diesel: "real diesel training, diagnostics, preventive maintenance, inspections, brakes, hydraulics, heavy equipment, or shop experience",
+  construction: "real construction, carpentry, installation, measuring, cutting, tools, jobsite safety, or helper experience",
+  customer_service: "real customer service duties such as phone support, email support, CRM, accounts, complaints, POS, returns, or service notes",
+  office: "real office duties such as data entry, records, scheduling, Microsoft Office, Excel, email, phones, or filing",
+  driving: "real CDL, DOT, pre-trip/post-trip inspections, route delivery, dispatch, paperwork, safe driving, or driving experience",
+  security: "real security training, guard card/security license if required, patrol experience, access control duties, visitor screening, incident reports, emergency response, surveillance cameras, or security work experience",
+  cleaning: "real cleaning, sanitation, trash removal, restocking, floor care, housekeeping, janitorial, or facility support duties",
+  food_service: "real food prep, cooking, food safety, sanitation, order handling, stocking, customer service, or restaurant experience",
+  education: "real classroom, student support, supervision, tutoring, lesson support, behavior management, or education training",
+  it: "real technical support, help desk, tickets, Windows, password resets, hardware, software, networking, cybersecurity tools, or IT training"
+};
+
+function getFamilyProofGaps(family, selectedLabel, missingItems = []) {
+  const lowerLabel = normalize(selectedLabel);
+  if (lowerLabel.includes("registered nurse") || lowerLabel === "rn") {
+    return ["active RN license", "clinical experience", "patient care", "medication administration", "vital signs", "care plans", "charting", "HIPAA", "infection control"];
+  }
+  if (lowerLabel.includes("licensed practical nurse") || lowerLabel === "lpn") {
+    return ["active LPN license", "clinical experience", "patient care", "medication administration", "vital signs", "charting", "HIPAA", "infection control"];
+  }
+  const missingTerms = cleanList((missingItems || []).map(item => item.term)).slice(0, 8);
+  const bank = FAMILY_PROOF_GAPS[family] || [];
+  return cleanList([...missingTerms, ...bank]).slice(0, 9);
+}
+
+function getFamilyStrengtheningAdvice(family, selectedLabel) {
+  const label = normalize(selectedLabel);
+  if (label.includes("registered nurse")) return "active RN license, nursing education, clinical experience, patient care, medication administration, charting, care plans, HIPAA, or infection control proof";
+  if (label.includes("licensed practical nurse")) return "active LPN license, nursing education, clinical experience, patient care, medication administration, charting, HIPAA, or infection control proof";
+  return FAMILY_STRENGTHENING_ADVICE[family] || "real training, certification, or job duties that prove the missing requirements";
+}
+
+function resumeShowsAny(resumeNorm, patterns) {
+  return patterns.some(pattern => resumeNorm.includes(normalize(pattern)));
+}
+
+function detectHardRequirements(jobText, resumeText, selectedFamily) {
+  const job = normalize(jobText);
+  const resume = normalize(resumeText);
+  const reqs = [];
+  function add(label, patterns, resumePatterns = [], level = "confirm") {
+    if (!patterns.some(pattern => job.includes(normalize(pattern)))) return;
+    const met = resumePatterns.length ? resumeShowsAny(resume, resumePatterns) : false;
+    reqs.push({ label, met, level });
+  }
+
+  add("high school diploma or GED proof", ["high school diploma", "ged", "diploma or equivalent", "high school diploma or equivalent"], ["high school", "ged", "diploma", "graduated"], "hard");
+  add("background check / background investigation", ["background investigation", "background check", "criminal histories"], [], "confirm");
+  add("drug screen", ["drug screen", "drug test", "drug screening"], [], "confirm");
+  add("valid driver's license", ["valid driver's license", "valid driver", "driver license", "driver’s license"], ["driver's license", "driver license", "valid license", "cdl"], "hard");
+  add("security license or guard card", ["licensing requirements", "security license", "guard card", "license may be required"], ["security license", "guard card"], "hard");
+  add("hospital vaccines", ["hospital vaccines", "vaccines are required", "vaccination required", "vaccines required"], ["vaccine", "vaccinated"], "hard");
+  add("hospital morgue exposure", ["morgue environment", "morgue exposure"], [], "confirm");
+  add("age requirement", ["at least 18", "18 years of age", "at least 21", "21 years of age"], [], "confirm");
+  add("active RN license", ["active rn license", "rn license", "registered nurse license"], ["rn license", "registered nurse", "nursing license"], "hard");
+  add("active LPN license", ["active lpn license", "lpn license", "licensed practical nurse"], ["lpn license", "licensed practical nurse"], "hard");
+  add("CNA certification", ["cna certification", "certified nursing assistant", "cna required"], ["cna", "certified nursing assistant"], "hard");
+  add("CDL", ["cdl", "commercial driver"], ["cdl", "cdl-a", "commercial driver"], "hard");
+  add("TWIC card", ["twic"], ["twic"], "hard");
+  add("rotating or swing shifts", ["rotating swing shifts", "rotating shifts", "swing shifts"], ["rotating shift", "swing shift", "12-hour", "12 hour", "night shift"], "confirm");
+  add("lifting or physical requirements", ["lift 50", "lift 75", "50/75", "squat", "stoop", "bend", "climb", "manual dexterity", "push/pull"], ["lift", "lifting", "50", "75", "physical", "squat", "stoop", "bend", "climb"], "confirm");
+  add("weekend or overnight availability", ["overnight", "weekend", "7:00 pm", "7 pm", "12-hour"], ["night shift", "overnight", "weekend", "12-hour", "12 hour"], "confirm");
+  add("security work history requirement", ["years of security experience", "security experience", "law enforcement experience", "security supervisor"], ["security officer", "security guard", "law enforcement", "security supervisor"], selectedFamily === "security" ? "hard" : "confirm");
+
+  return reqs;
+}
+
+function formatHardRequirement(req) {
+  if (req.met) return `${req.label} appears to be shown.`;
+  if (req.level === "hard") return `${req.label} is required or strongly requested. Add proof only if you have it.`;
+  return `${req.label} is mentioned in the job post. Confirm before applying.`;
+}
+
+function buildSmartFixes(resumeText, jobText, targetFamily, selected, keywordData) {
+  const hardRequirements = detectHardRequirements(jobText, resumeText, selected.family || targetFamily);
+  const missing = cleanList([...(keywordData.criticalMissing || []), ...(keywordData.helpfulMissing || []), ...(keywordData.softMissing || [])].map(item => item.term));
+  const proofGaps = getFamilyProofGaps(targetFamily, selected.label, keywordData.missing).filter(item => !getProofTerms(resumeText, targetFamily).includes(item));
+  return { hardRequirements, missingKeywords: missing, proofGaps };
+}
+
+function safeResumeTitle(resumeText, family, selectedLabel, diagnosisCategory) {
+  const resume = normalize(resumeText);
+  const selected = text(selectedLabel).trim();
+  const helperWords = /(helper|assistant|apprentice|trainee|laborer|aide)/i.test(resumeText);
+  if (helperWords && family === "diesel") return "Diesel mechanic helper";
+  if (helperWords && family === "electrical") return "Electrical helper";
+  if (helperWords && family === "maintenance") return "Maintenance-related helper";
+  if (helperWords && family === "construction") return "Construction helper";
+  if (helperWords && family === "healthcare") return "Healthcare support worker";
+  if (diagnosisCategory !== "medium_match") return selected && selected !== "General / Any Job" ? selected : (FAMILY_WORDING_BLUEPRINTS[family]?.title || FAMILY_LABELS[family] || "Worker");
+
+  if (family === "diesel") return "Mechanical worker";
+  if (family === "maintenance") return "Hands-on maintenance worker";
+  if (family === "electrical") return "Electrical worker";
+  if (family === "customer_service") {
+    if (resume.includes("retail")) return "Retail customer service associate";
+    if (resume.includes("cashier")) return "Cashier and customer service worker";
+    return "Customer service worker";
+  }
+  if (family === "office") return resume.includes("office assistant") ? "Office assistant" : "Office support worker";
+  if (family === "driving") return resume.includes("cdl") ? "CDL driver" : "Delivery driver";
+  if (family === "warehouse") return "Warehouse worker";
+  if (family === "manufacturing") return "Manufacturing worker";
+  if (family === "healthcare") return helperWords ? "Healthcare support worker" : "Patient care worker";
+  if (family === "security") return "Security-related worker";
+  return FAMILY_WORDING_BLUEPRINTS[family]?.title || FAMILY_LABELS[family] || "Worker";
 }
 
 function hasAnyProof(resumeText, family, proofNames) {
@@ -901,7 +1062,7 @@ function buildCustomerServiceWording(resumeText, diagnosisCategory, selectedLabe
   if (hasCash) second.push("cash handling and POS systems");
   if (hasSales) second.push("sales support");
 
-  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Customer Service Representative";
+  const title = safeResumeTitle(resumeText, "customer_service", selectedLabel, diagnosisCategory);
   const summary = `${title} with experience ${makeSentence(first, "assisting customers and resolving service needs")}. Skilled in ${makeSentence(second, "professional communication and customer support")}.`;
 
   const bullets = [];
@@ -942,7 +1103,7 @@ function buildDrivingWording(resumeText, diagnosisCategory, selectedLabel = "Tru
   if (hasCDL) credentials.push("CDL-A or CDL credentials");
   if (hasTWIC) credentials.push("TWIC card");
 
-  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Truck Driver";
+  const title = safeResumeTitle(resumeText, "driving", selectedLabel, diagnosisCategory);
   const sentenceOne = `${title} with experience ${makeSentence(first, "completing safe delivery routes and inspection tasks")}.`;
   const sentenceTwo = credentials.length ? `Holds ${joinEnglish(credentials)} with experience ${makeSentence([hasSecured ? "loading and securing materials" : "", hasPaperwork ? "maintaining delivery paperwork" : "", hasDispatch ? "communicating with dispatch or customers" : ""], "supporting safe route delivery")}.` : `Skilled in ${makeSentence([hasDOT ? "DOT procedures" : "", hasPre ? "pre-trip inspections" : "", hasPost ? "post-trip inspections" : "", hasRoute ? "route planning" : ""], "safe route delivery and inspection procedures")}.`;
 
@@ -964,7 +1125,7 @@ function buildOfficeWording(resumeText, diagnosisCategory, selectedLabel = "Offi
   const hasEmail = hasResumeProof(resumeText, "office", "email");
   const hasOffice = hasResumeProof(resumeText, "office", "Microsoft Office");
   const hasPhone = hasResumeProof(resumeText, "office", "phone calls");
-  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Office Assistant";
+  const title = safeResumeTitle(resumeText, "office", selectedLabel, diagnosisCategory);
   const summary = `${title} with experience ${makeSentence([hasData ? "entering data accurately" : "", hasRecords ? "maintaining records and files" : "", hasScheduling ? "scheduling appointments or calendar items" : "", hasEmail ? "handling email communication" : "", hasPhone ? "answering phone calls" : ""], "supporting office tasks and records")}. Skilled in ${makeSentence([hasOffice ? "Microsoft Office" : "", hasData ? "data entry" : "", hasRecords ? "records management" : "", hasScheduling ? "scheduling" : ""], "organization and office support")}.`;
   const bullets = [];
   if (hasData) bullets.push("Entered data accurately into records, spreadsheets, or office systems.");
@@ -985,7 +1146,7 @@ function buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms
 
   if (!proved.length) return { summary: "", bullets: [] };
 
-  const title = titleForWording(selectedLabel, family);
+  const title = titleForWording(selectedLabel, family, diagnosisCategory, resumeText);
   const summaryParts = cleanList(proved.map(item => item.summary)).slice(0, 5);
   const skillParts = cleanList(proved.map(item => item.skill)).slice(0, 6);
 
@@ -1053,27 +1214,32 @@ function buildOutput(analysis) {
 
   if (diagnosis.category === "weak_evidence") {
     const closerRoles = RELATED_ROLES[resumeFamily.family] || RELATED_ROLES[jobFamily.family] || [];
+    const targetFamily = selectedFamily === "general" ? jobFamily.family : selectedFamily;
+    const specificProofNeeded = getFamilyProofGaps(targetFamily, selected.label, keywordData.missing);
+    const advice = getFamilyStrengtheningAdvice(targetFamily, selected.label);
     return {
       summaryHeading: "Right Direction",
-      bulletHeading: "Proof needed before rewrite",
-      summary: `No ${selected.label}-specific rewrite generated. This resume does not prove enough direct ${jobFamilyLabel} experience yet. Missing proof includes ${joinEnglish(proofNeeded)}. Add those only if they are real.`,
+      bulletHeading: "Proof checklist before rewrite",
+      summary: `No ${selected.label}-specific rewrite generated. This resume does not prove enough direct ${jobFamilyLabel} experience yet. Missing proof includes ${joinEnglish(specificProofNeeded.slice(0, 6))}. Add those only if they are real.`,
       bullets: [
-        `Do not add ${joinEnglish(proofNeeded.slice(0, 5))} unless you have actually done those duties or completed that training.`,
+        `Do not add ${joinEnglish(specificProofNeeded.slice(0, 6))} unless you have actually done those duties or completed that training.`,
         closerRoles.length ? `This resume is currently stronger for ${joinEnglish(closerRoles.slice(0, 5))}.` : `This resume is currently stronger for ${resumeFamilyLabel} roles.`,
-        `To become stronger for ${selected.label}, add real training, certification, clinical experience, or job duties that prove the missing requirements.`
+        `To become stronger for ${selected.label}, add ${advice}.`
       ]
     };
   }
 
   if (diagnosis.category === "transferable") {
     const closerRoles = RELATED_ROLES[resumeFamily.family] || [];
+    const targetFamily = selectedFamily === "general" ? jobFamily.family : selectedFamily;
+    const specificProofNeeded = getFamilyProofGaps(targetFamily, selected.label, keywordData.missing);
     return {
       summaryHeading: "Transferable Direction",
       bulletHeading: "Safe next steps",
       summary: `No full ${selected.label} rewrite generated. The resume shows stronger proof for ${resumeFamilyLabel}, while the job post is closer to ${jobFamilyLabel}.`,
       bullets: [
         evidenceTerms.length ? `Safe proof already shown: ${joinEnglish(evidenceTerms.slice(0, 5))}.` : `Direct proof for this job type is limited.`,
-        proofNeeded.length ? `Do not add ${joinEnglish(proofNeeded.slice(0, 5))} unless it is true.` : "Do not add job-specific duties unless the resume proves them.",
+        specificProofNeeded.length ? `Do not add ${joinEnglish(specificProofNeeded.slice(0, 6))} unless it is true.` : "Do not add job-specific duties unless the resume proves them.",
         closerRoles.length ? `A closer application target would be ${joinEnglish(closerRoles.slice(0, 4))}.` : "Apply to roles that match the strongest proof already in the resume."
       ]
     };
@@ -1115,8 +1281,12 @@ function analyzeResume(resumeText, jobText, jobType) {
     return activeNames.includes(termName) || keywordData.score >= 60;
   });
   const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms });
-  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText });
-  const displayScore = diagnosis.category === "wrong_job_type" ? keywordData.score : keywordData.score;
+  const targetForFixes = targetFamily === "general" ? selectedFamily : targetFamily;
+  const smartFixes = buildSmartFixes(resumeText, jobText, targetForFixes, selected, keywordData);
+  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes });
+  let displayScore = keywordData.score;
+  const missingConfirmations = smartFixes.hardRequirements.filter(item => !item.met).length + keywordData.helpfulMissing.length + keywordData.softMissing.length;
+  if (displayScore >= 97 && missingConfirmations > 0) displayScore = 96;
 
   return {
     selected,
@@ -1125,6 +1295,7 @@ function analyzeResume(resumeText, jobText, jobType) {
     resumeFamily,
     keywordData,
     evidenceTerms,
+    smartFixes,
     diagnosis,
     output,
     score: displayScore
@@ -1207,15 +1378,20 @@ function renderMissingKeywords(container, analysis) {
   if (!container) return;
   container.innerHTML = "";
   const summary = document.createElement("p");
-  summary.textContent = `Smart match: ${analysis.keywordData.score}% weighted job-skill coverage. Generic words are ignored; only useful job skills are shown.`;
+  summary.textContent = `Smart match: ${analysis.score}% weighted job-skill coverage. Generic words are ignored; only useful job skills are shown.`;
   summary.style.margin = "0 0 14px";
   summary.style.color = "#a7b0bf";
   summary.style.lineHeight = "1.45";
   container.appendChild(summary);
 
-  renderKeywordGroup(container, "High Priority Missing", analysis.keywordData.criticalMissing, "Add these only if your real experience, training, or certification proves them.");
-  renderKeywordGroup(container, "Helpful Keywords to Add", analysis.keywordData.helpfulMissing, "These can improve ATS wording when they are true.");
-  renderKeywordGroup(container, "Soft / Supporting Details Missing", analysis.keywordData.softMissing, "These matter less than hard job duties and certifications.");
+  const hardReqs = analysis.smartFixes?.hardRequirements || [];
+  if (hardReqs.length) {
+    renderKeywordGroup(container, "Hard Requirements / Confirm Before Applying", hardReqs.map(formatHardRequirement), "These come from the job post. Add proof to your resume only if it is true, and confirm requirements before applying.");
+  }
+
+  renderKeywordGroup(container, "Required Proof Gaps", analysis.smartFixes?.proofGaps || analysis.keywordData.criticalMissing, "These are the main proof areas the resume may not show. Add only the ones you actually have.");
+  renderKeywordGroup(container, "Possible ATS Keywords to Add Only If True", analysis.keywordData.helpfulMissing, "These can improve ATS wording when they are true. Do not silently add them to the resume.");
+  renderKeywordGroup(container, "Soft / Supporting Details Missing", analysis.keywordData.softMissing, "These matter less than hard job duties and certifications, but can help when true.");
 }
 
 function renderMatchedKeywords(container, analysis) {
@@ -1233,7 +1409,17 @@ function buildRedFlags(resumeText, jobText, analysis) {
     flags.push(`<strong>Weak evidence:</strong> this resume does not prove enough direct experience for this job-specific rewrite.`);
   }
   if (analysis.keywordData.criticalMissing.length) {
-    flags.push(`<strong>High-priority gap:</strong> ${escapeHTML(joinEnglish(analysis.keywordData.criticalMissing.map(item => item.term).slice(0, 5)))} ${analysis.keywordData.criticalMissing.length === 1 ? "is" : "are"} missing. Add only if true.`);
+    const targetFamily = analysis.selectedFamily === "general" ? analysis.jobFamily.family : analysis.selectedFamily;
+    const proofGaps = getFamilyProofGaps(targetFamily, analysis.selected.label, analysis.keywordData.missing).slice(0, 6);
+    flags.push(`<strong>Required proof gap:</strong> ${escapeHTML(joinEnglish(proofGaps))} ${proofGaps.length === 1 ? "is" : "are"} not clearly proven. Add only if true.`);
+  }
+  const hardReqs = (analysis.smartFixes?.hardRequirements || []).filter(item => !item.met).slice(0, 4);
+  hardReqs.forEach(req => {
+    flags.push(`<strong>Job requirement:</strong> ${escapeHTML(formatHardRequirement(req))}`);
+  });
+  const helpful = cleanList([...(analysis.keywordData.helpfulMissing || []), ...(analysis.keywordData.softMissing || [])].map(item => item.term)).slice(0, 6);
+  if (helpful.length) {
+    flags.push(`<strong>Possible ATS keywords:</strong> ${escapeHTML(joinEnglish(helpful))}. Add only if you actually did them.`);
   }
   if (!/20\d{2}|19\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec/i.test(resumeText)) {
     flags.push(`<strong>Missing dates:</strong> add month/year dates so the resume looks complete.`);
@@ -1266,6 +1452,11 @@ function setRewriteHeadings(output) {
   const bulletHeading = $("bulletHeading");
   if (summaryHeading) summaryHeading.textContent = output.summaryHeading;
   if (bulletHeading) bulletHeading.textContent = output.bulletHeading;
+  const summaryBtn = document.querySelector('[data-copy="summaryOutput"]');
+  const bulletBtn = document.querySelector('[data-copy="bulletOutput"]');
+  const directionMode = /direction|proof|warning|switch/i.test(`${output.summaryHeading} ${output.bulletHeading}`);
+  if (summaryBtn) summaryBtn.textContent = directionMode ? "Copy direction" : "Copy summary";
+  if (bulletBtn) bulletBtn.textContent = directionMode ? "Copy proof checklist" : "Copy bullets";
 }
 
 function analyzeAndRender() {
