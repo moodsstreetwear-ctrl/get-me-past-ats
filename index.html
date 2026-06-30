@@ -259,6 +259,12 @@
       </article>
 
       <article class="panel">
+        <p class="eyebrow">Resume Direction</p>
+        <h3>Honest ATS guidance</h3>
+        <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, a wording gap, a transferable match, or the wrong job type.</div>
+      </article>
+
+      <article class="panel">
         <p class="eyebrow">Smart Keyword Match</p>
         <h3>High-priority and helpful keywords your resume may not show</h3>
         <div class="chip-list" id="missingKeywords"></div>
@@ -280,18 +286,18 @@
     <section class="panel" id="rewrite" hidden>
       <div class="section-heading">
         <p class="eyebrow">Step 2</p>
-        <h2>Copy-ready resume wording</h2>
-        <p>Use this as a starting point. Edit it so it stays honest and sounds like you.</p>
+        <h2>Starter resume wording</h2>
+        <p>Based only on what your resume already shows. Do not add anything you have not actually done.</p>
       </div>
 
       <div class="rewrite-grid">
         <article>
-          <h3>Better summary</h3>
+          <h3>2-sentence starter summary</h3>
           <div class="copy-box" id="summaryOutput"></div>
           <button class="copy-button" data-copy="summaryOutput">Copy summary</button>
         </article>
         <article>
-          <h3>Better bullets</h3>
+          <h3>3 honest starter bullets</h3>
           <div class="copy-box" id="bulletOutput"></div>
           <button class="copy-button" data-copy="bulletOutput">Copy bullets</button>
         </article>
@@ -349,7 +355,7 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=all-buttons-v3"></script>
+  <script type="module" src="app.js?v=honest-free-v2"></script>
   <script>
     // Emergency button fallback. It only turns on if app.js fails to initialize.
     (function () {
@@ -399,16 +405,29 @@
         if ($("results")) $("results").hidden = false;
         if ($("rewrite")) $("rewrite").hidden = false;
         if ($("scoreValue")) $("scoreValue").textContent = score;
-        if ($("scoreMessage")) $("scoreMessage").textContent = score >= 70 ? "Good base. Add the most important missing words naturally before applying." : "The resume and job post are not speaking the same language yet.";
+        const diagnosis = score >= 70 ? "Good Match" : score >= 45 ? "Transferable Match" : "Weak Match";
+        const diagnosisText = score >= 70
+          ? "Your resume has solid overlap with this job post. Starter wording below should still use only proven experience."
+          : score >= 45
+            ? "Your resume shows some transferable overlap, but not enough direct proof to force the match. Use safe wording only."
+            : "Your resume does not match this job post closely enough yet. Do not create fake experience to fit the job.";
+        if ($("scoreMessage")) $("scoreMessage").textContent = diagnosis + ". " + diagnosisText;
         if ($("scoreBar")) $("scoreBar").style.width = score + "%";
+        if ($("diagnosisOutput")) $("diagnosisOutput").innerHTML = `<h4 style="margin:0 0 8px;color:#f4f7fb">${diagnosis}</h4><p style="margin:0 0 10px;color:#d6dbe6;line-height:1.55">${escapeHTML(diagnosisText)}</p><p style="margin:0;color:#a7ffce;line-height:1.45">Missing keywords are suggestions only. Add them only if they are true.</p>`;
         if ($("missingKeywords")) $("missingKeywords").innerHTML = missing.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No major missing keywords found</span>';
         if ($("matchedKeywords")) $("matchedKeywords").innerHTML = matched.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No matches found yet</span>';
         if ($("redFlags")) $("redFlags").innerHTML = [
-          missing.length > 10 ? "<strong>Keyword gap:</strong> add honest job-post wording where it fits." : "No major keyword red flag from the backup checker.",
-          !/20\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(resume) ? "<strong>Missing dates:</strong> add month/year dates if your resume does not show them." : "Dates appear to be present."
+          missing.length > 10 ? "<strong>Keyword gap:</strong> add honest job-post wording only where the resume proves it." : "No major keyword red flag from the backup checker.",
+          !/20\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(resume) ? "<strong>Missing dates:</strong> add month/year dates if your resume does not show them." : "Dates appear to be present.",
+          "<strong>Truth rule:</strong> fix ATS wording, not reality."
         ].map(item => `<li>${item}</li>`).join("");
-        if ($("summaryOutput")) $("summaryOutput").textContent = "Reliable candidate with experience that should be tailored closer to this job post. Add honest proof for the strongest missing keywords: " + (missing.slice(0, 6).join(", ") || "no major keyword gaps found") + ".";
-        if ($("bulletOutput")) $("bulletOutput").textContent = "• Matched resume wording to the job post using relevant skills and experience.\n• Added honest examples for missing keywords where they apply.\n• Reviewed dates, sections, and measurable proof before applying.";
+        const topMatched = matched.slice(0, 4).join(", ") || "reliability, communication, safety, and task completion";
+        if ($("summaryOutput")) $("summaryOutput").textContent = score < 45
+          ? "Your resume does not show enough proof for this job yet, so this backup checker will not create job-specific wording. Add real experience, training, or certification first if it applies."
+          : "Reliable candidate with proven experience including " + topMatched + ". Able to follow instructions, support daily goals, and present real experience in ATS-friendly wording without adding false claims.";
+        if ($("bulletOutput")) $("bulletOutput").textContent = score < 45
+          ? "• Do not force this resume into a job it does not prove.\n• Add real job-specific proof first if you have it.\n• Apply to roles closer to the experience already shown, or get the needed training first."
+          : "• Used proven resume skills such as " + topMatched + " to complete assigned work.\n• Followed instructions, workplace procedures, and daily expectations while supporting team goals.\n• Kept the resume honest by adding ATS wording only where real experience already exists.";
         $("results") && $("results").scrollIntoView({ behavior: "smooth", block: "start" });
       }
       function clearAnalyzer() {
@@ -419,7 +438,7 @@
         if ($("scoreValue")) $("scoreValue").textContent = "0";
         if ($("scoreMessage")) $("scoreMessage").textContent = "";
         if ($("scoreBar")) $("scoreBar").style.width = "0%";
-        ["missingKeywords","matchedKeywords","redFlags","summaryOutput","bulletOutput"].forEach(id => { if ($(id)) $(id).textContent = ""; });
+        ["diagnosisOutput","missingKeywords","matchedKeywords","redFlags","summaryOutput","bulletOutput"].forEach(id => { if ($(id)) $(id).textContent = ""; });
       }
       function trackerKey() {
         const user = JSON.parse(localStorage.getItem("gmpt_current_user") || "null");

@@ -530,21 +530,6 @@ function relatedTermsFor(keyword) {
   return [...new Set([...direct, ...reverse])];
 }
 
-function getKeywordMatch(keyword, resumeText) {
-  if (phraseInText(keyword, resumeText)) {
-    return { status: "exact", matchedBy: keyword };
-  }
-
-  const related = relatedTermsFor(keyword);
-  const matchedRelated = related.find(term => phraseInText(term, resumeText));
-  if (matchedRelated) {
-    return { status: "related", matchedBy: matchedRelated };
-  }
-
-  return { status: "missing", matchedBy: null };
-}
-
-
 function uniqueList(items) {
   return [...new Set((items || []).filter(Boolean))];
 }
@@ -727,6 +712,7 @@ function getKeywordMatch(keyword, resumeText) {
 }
 
 function analyzeResume(resumeText, jobText, jobType) {
+  const mismatch = detectJobTypeMismatch(jobText, jobType);
   const keywords = extractImportantKeywords(jobText, jobType);
   const evaluated = keywords.map(keyword => {
     const match = getKeywordMatch(keyword.term, resumeText);
@@ -758,7 +744,7 @@ function analyzeResume(resumeText, jobText, jobType) {
   const score = Math.min(100, keywordScore + sectionScore + lengthBonus);
   const weightedCoverage = totalWeight ? Math.round((earnedWeight / totalWeight) * 100) : 0;
 
-  return {
+  const baseAnalysis = {
     keywords,
     evaluated,
     exactMatched,
@@ -771,11 +757,28 @@ function analyzeResume(resumeText, jobText, jobType) {
     softMissing,
     sectionChecks,
     weightedCoverage,
-    score
+    score,
+    mismatch
+  };
+
+  const evidence = evaluateEvidenceForJobType(resumeText, jobType);
+  const diagnosis = buildDiagnosis(resumeText, jobText, jobType, baseAnalysis, evidence, mismatch);
+
+  return {
+    ...baseAnalysis,
+    evidenceCoverage: evidence.coverage,
+    directHighMatches: evidence.directHighMatches,
+    proofMatches: evidence.proofMatches,
+    proofSatisfied: evidence.proofSatisfied,
+    requiredTerms: evidence.requiredTerms,
+    requiredMinimum: evidence.requiredMinimum,
+    diagnosis,
+    directionNote: buildDirectionNotes(jobType, { ...baseAnalysis, ...evidence, diagnosis, mismatch })
   };
 }
 
-function getScoreMessage(score) {
+function getScoreMessage(score, analysis = null) {
+  if (analysis?.diagnosis?.title) return `${analysis.diagnosis.title}. ${analysis.diagnosis.message}`;
   if (score >= 85) return "Strong match. Clean up the red flags, then apply.";
   if (score >= 70) return "Good base. Add the high-priority missing keywords naturally before applying.";
   if (score >= 50) return "Decent start, but the resume may still look too generic for this job post.";
@@ -785,6 +788,16 @@ function getScoreMessage(score) {
 function buildRedFlags(resumeText, jobText, analysis) {
   const flags = [];
   const lowerResume = resumeText.toLowerCase();
+
+  if (analysis.diagnosis?.type === "wrong_job_type") {
+    flags.push(`<strong>Possible wrong job type:</strong> this job post looks closer to ${analysis.mismatch?.suggestedLabel || "another role"}. Switch the job type and scan again before editing the resume.`);
+  }
+  if (analysis.diagnosis?.type === "weak_evidence") {
+    flags.push("<strong>Do not force this match:</strong> the resume does not show enough direct proof for this job type yet.");
+  }
+  if (analysis.diagnosis?.type === "wording_gap") {
+    flags.push("<strong>Wording gap:</strong> the experience looks related, but the ATS wording needs to be clearer.");
+  }
 
   if (analysis.criticalMissing.length >= 5) {
     flags.push("<strong>High-priority keywords missing:</strong> the resume is missing several important words or skills from the job post.");
@@ -889,76 +902,441 @@ function getJobFamily(jobType) {
   return familyMap[jobType] || "general";
 }
 
-function buildSummary(jobType, analysis) {
-  const strengths = analysis.matched.slice(0, 6).map(item => item.term);
-  const needs = analysis.criticalMissing.slice(0, 4).map(item => item.term);
-  const typeLine = {
-    general: "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.",
-    manufacturing: "Reliable industrial and manufacturing worker with hands-on experience in machine operation, production support, equipment monitoring, safety procedures, and quality checks.",
-    warehouse: "Warehouse and material handling candidate with experience supporting fast-paced operations, moving materials safely, using equipment, tracking inventory, and meeting daily goals.",
-    maintenance: "Hands-on maintenance candidate with experience using tools, troubleshooting problems, supporting repairs, completing work orders, and keeping work areas safe.",
-    apartment: "Apartment and property maintenance candidate with hands-on repair experience, customer service awareness, and the ability to support work orders, turnovers, grounds, and basic building repairs.",
-    cdl: "CDL-A holder with a safety-focused background, hands-on industrial experience, and the ability to follow procedures, inspect equipment, and work reliably.",
-    delivery: "Reliable delivery driver candidate with safe driving habits, route awareness, customer service skills, and experience handling materials, loading, unloading, and meeting time expectations.",
-    construction: "Construction and carpentry candidate with hands-on experience using tools, supporting job site tasks, measuring, installing materials, and following safety expectations.",
-    electrician: "Electrician helper and apprentice candidate with hands-on experience supporting wiring, outlets, switches, troubleshooting, installation work, tools, and job site safety.",
-    welding: "Welding and fabrication candidate with hands-on shop experience, tool use, measuring, cutting, grinding, fitting, safety awareness, and attention to quality.",
-    diesel: "Diesel mechanic and heavy equipment candidate with hands-on mechanical interest, troubleshooting ability, tool use, inspection mindset, and safety-focused repair support experience.",
-    security: "Security officer candidate with reliability, observation skills, customer service ability, professionalism, safety awareness, and the ability to document incidents clearly.",
-    remote: "Remote customer support candidate with communication skills, computer ability, typing, documentation, problem solving, and the discipline to work independently from home.",
-    dataentry: "Data entry and clerical candidate with typing ability, attention to detail, computer skills, record keeping, accuracy, and the ability to follow office procedures.",
-    customer_service: "Customer service candidate with communication skills, problem solving, patience, documentation ability, and experience helping people in fast-paced environments.",
-    admin: "Administrative assistant and office support candidate with organization, scheduling, data entry, email, phone, records, and computer skills.",
-    sales_retail: "Sales and retail candidate with customer service ability, teamwork, product knowledge, cash handling, inventory support, and strong communication.",
-    food_service: "Food service candidate with fast-paced work experience, customer service ability, cleaning standards, teamwork, safety awareness, and willingness to learn restaurant operations.",
-    hospitality: "Hospitality candidate with guest service ability, professionalism, communication skills, problem solving, attention to detail, and reliability in customer-facing environments.",
-    healthcare_support: "Healthcare support candidate with reliability, compassion, safety awareness, documentation habits, teamwork, and the ability to support patient care procedures.",
-    it_helpdesk: "Entry-level IT help desk candidate with troubleshooting ability, customer service skills, documentation habits, computer knowledge, and willingness to learn technical systems.",
-    janitorial: "Janitorial and custodial candidate with cleaning experience, attention to detail, safety awareness, sanitation habits, reliability, and pride in maintaining professional spaces.",
-    call_center: "Call center and dispatch candidate with phone communication, typing, documentation, customer service, scheduling, problem solving, and ability to handle high-volume work.",
-    apprenticeship: "Motivated trade apprenticeship candidate with hands-on work experience, strong attendance, safety awareness, and willingness to learn a long-term skilled career."
-  }[getJobFamily(jobType)] || "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.";
 
-  return `${typeLine} Experienced working in fast-paced environments, following instructions, supporting production goals, and learning new equipment or processes. Smart keyword coverage is ${analysis.weightedCoverage}%. Key strengths for this role include ${strengths.length ? strengths.join(", ") : "safety, reliability, teamwork, and problem solving"}. Add honest proof for these high-priority keywords if they apply: ${needs.length ? needs.join(", ") : "no major high-priority keyword gaps found"}.`;
+const jobTypeLabels = {
+  general: "General / Any Job",
+  customer_service_representative: "Customer Service Representative",
+  data_entry_clerk: "Data Entry Clerk",
+  administrative_assistant: "Administrative Assistant",
+  receptionist: "Receptionist",
+  call_center_representative: "Call Center Representative",
+  remote_customer_support_representative: "Remote Customer Support Representative",
+  office_assistant: "Office Assistant",
+  sales_representative: "Sales Representative",
+  retail_associate: "Retail Associate",
+  cashier: "Cashier",
+  stocker: "Stocker",
+  warehouse_associate: "Warehouse Associate",
+  package_handler: "Package Handler",
+  material_handler: "Material Handler",
+  forklift_operator: "Forklift Operator",
+  delivery_driver: "Delivery Driver",
+  truck_driver: "Truck Driver",
+  machine_operator: "Machine Operator",
+  production_worker: "Production Worker",
+  assembly_worker: "Assembly Worker",
+  maintenance_technician: "Maintenance Technician",
+  apartment_maintenance_technician: "Apartment Maintenance Technician",
+  electrician: "Electrician",
+  welder: "Welder",
+  diesel_mechanic: "Diesel Mechanic",
+  construction_laborer: "Construction Laborer",
+  carpenter: "Carpenter",
+  security_officer: "Security Officer",
+  janitor: "Janitor",
+  housekeeper: "Housekeeper",
+  hotel_front_desk_agent: "Hotel Front Desk Agent",
+  server: "Server",
+  cook: "Cook",
+  certified_nursing_assistant: "Certified Nursing Assistant",
+  medical_assistant: "Medical Assistant",
+  patient_care_technician: "Patient Care Technician",
+  home_health_aide: "Home Health Aide",
+  phlebotomist: "Phlebotomist",
+  pharmacy_technician: "Pharmacy Technician",
+  dental_assistant: "Dental Assistant",
+  licensed_practical_nurse: "Licensed Practical Nurse",
+  registered_nurse: "Registered Nurse",
+  medical_billing_specialist: "Medical Billing Specialist",
+  medical_coding_specialist: "Medical Coding Specialist",
+  teacher_assistant: "Teacher Assistant",
+  substitute_teacher: "Substitute Teacher",
+  bookkeeper: "Bookkeeper",
+  human_resources_assistant: "Human Resources Assistant",
+  it_help_desk_technician: "IT Help Desk Technician",
+  cybersecurity_analyst: "Cybersecurity Analyst"
+};
+
+const familyDisplayNames = {
+  general: "general work",
+  warehouse: "warehouse and material handling",
+  manufacturing: "manufacturing and machine operation",
+  customer_service: "customer service",
+  call_center: "call center support",
+  remote: "remote customer support",
+  dataentry: "data entry and clerical work",
+  admin: "administrative and office support",
+  sales_retail: "sales and retail",
+  delivery: "delivery and route work",
+  cdl: "CDL and truck driving",
+  maintenance: "maintenance and repair",
+  apartment: "apartment maintenance",
+  electrician: "electrical helper work",
+  welding: "welding and fabrication",
+  diesel: "diesel/mechanical repair",
+  construction: "construction and carpentry",
+  security: "security work",
+  janitorial: "cleaning and custodial work",
+  hospitality: "hospitality and guest service",
+  food_service: "food service",
+  healthcare_support: "healthcare support",
+  it_helpdesk: "IT help desk and technical support",
+  apprenticeship: "training and apprenticeship roles"
+};
+
+const requiredProofRules = {
+  healthcare_support: { minimum: 1, terms: ["CNA", "certified nursing assistant", "patient care", "patients", "residents", "ADLs", "vital signs", "caregiver", "home health", "HIPAA", "infection control", "clinical", "phlebotomy", "EKG", "blood draw", "medical assistant"] },
+  cdl: { minimum: 1, terms: ["CDL", "DOT", "truck driver", "pre-trip", "post-trip", "safe driving", "route", "delivery", "TWIC", "hours of service"] },
+  electrician: { minimum: 1, terms: ["electrical", "wiring", "outlets", "switches", "panels", "conduit", "fixtures", "installation", "troubleshooting"] },
+  welding: { minimum: 1, terms: ["welding", "welder", "fabrication", "MIG", "TIG", "grinding", "cutting", "fitting", "blueprint"] },
+  diesel: { minimum: 1, terms: ["diesel", "mechanic", "diagnostics", "repair", "preventive maintenance", "brakes", "hydraulics", "heavy equipment", "inspection"] },
+  it_helpdesk: { minimum: 1, terms: ["IT", "technical support", "help desk", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset", "cybersecurity", "network"] }
+};
+
+function labelForJobType(jobType) {
+  return jobTypeLabels[jobType] || String(jobType || "General").replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
+
+function displayFamily(jobTypeOrFamily) {
+  const family = familyKeywordRules[jobTypeOrFamily] ? jobTypeOrFamily : getJobFamily(jobTypeOrFamily);
+  return familyDisplayNames[family] || "this type of work";
+}
+
+function proofTermsForJobType(jobType) {
+  const family = getJobFamily(jobType);
+  const direct = jobTypeKeywordRules[jobType] || {};
+  const familyRules = familyKeywordRules[family] || familyKeywordRules.general;
+  const required = requiredProofRules[jobType] || requiredProofRules[family] || null;
+  return uniqueList([...(required?.terms || []), ...(direct.high || []), ...(familyRules.high || [])]);
+}
+
+function evaluateEvidenceForJobType(text, jobType) {
+  const rules = keywordRulesFor(jobType);
+  const required = requiredProofRules[jobType] || requiredProofRules[getJobFamily(jobType)] || null;
+  const terms = uniqueList([...(rules.high || []), ...(rules.medium || [])]);
+  const evaluated = terms.map(term => {
+    const match = getKeywordMatch(term, text);
+    const importance = (rules.high || []).some(item => normalize(item) === normalize(term)) ? "high" : "medium";
+    const weight = keywordWeight(importance);
+    return { term, importance, weight, ...match };
+  });
+  const totalWeight = evaluated.reduce((total, item) => total + item.weight, 0);
+  const earnedWeight = evaluated.reduce((total, item) => total + (item.weight * (matchCredits[item.status] || 0)), 0);
+  const coverage = totalWeight ? Math.round((earnedWeight / totalWeight) * 100) : 0;
+  const directHighMatches = evaluated.filter(item => item.importance === "high" && (item.status === "exact" || item.status === "related"));
+  const proofTerms = required?.terms || [];
+  const proofMatches = proofTerms
+    .map(term => ({ term, ...getKeywordMatch(term, text) }))
+    .filter(item => item.status === "exact" || item.status === "related");
+  const proofSatisfied = !required || proofMatches.length >= (required.minimum || 1);
+
+  return {
+    coverage,
+    evaluated,
+    directHighMatches,
+    proofMatches,
+    proofSatisfied,
+    requiredTerms: proofTerms,
+    requiredMinimum: required?.minimum || 0
+  };
+}
+
+function scoreJobTypeAgainstText(text, jobType) {
+  const rules = keywordRulesFor(jobType);
+  const preset = presetKeywords[jobType] || [];
+  const terms = uniqueList([...(rules.high || []), ...(rules.medium || []), ...preset]);
+  return terms.reduce((score, term) => {
+    const match = getKeywordMatch(term, text);
+    if (match.status === "exact") return score + 5;
+    if (match.status === "related") return score + 4;
+    if (match.status === "weak") return score + 1.5;
+    return score;
+  }, 0);
+}
+
+function detectJobTypeMismatch(jobText, selectedJobType) {
+  if (!jobText || selectedJobType === "general") return null;
+
+  const candidates = Object.keys(presetKeywords)
+    .filter(jobType => jobType !== "general")
+    .map(jobType => ({ jobType, score: scoreJobTypeAgainstText(jobText, jobType) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  const selectedScore = scoreJobTypeAgainstText(jobText, selectedJobType);
+  const best = candidates[0];
+  if (!best || best.jobType === selectedJobType) return null;
+
+  const selectedFamily = getJobFamily(selectedJobType);
+  const bestFamily = getJobFamily(best.jobType);
+  const clearlyDifferent = selectedFamily !== bestFamily;
+  const clearlyStronger = best.score >= Math.max(14, selectedScore + 8, selectedScore * 1.45);
+
+  if (!clearlyDifferent || !clearlyStronger) return null;
+
+  return {
+    selectedJobType,
+    selectedLabel: labelForJobType(selectedJobType),
+    selectedScore: Math.round(selectedScore),
+    suggestedJobType: best.jobType,
+    suggestedLabel: labelForJobType(best.jobType),
+    suggestedFamily: bestFamily,
+    suggestedScore: Math.round(best.score),
+    alternatives: candidates.slice(0, 3).map(item => ({ ...item, label: labelForJobType(item.jobType), score: Math.round(item.score) }))
+  };
+}
+
+function provenSkillTerms(analysis, limit = 8) {
+  const items = [
+    ...(analysis.exactMatched || []),
+    ...(analysis.relatedMatched || []),
+    ...(analysis.weakMatched || [])
+  ];
+  return uniqueList(items
+    .filter(item => item.status !== "missing")
+    .sort((a, b) => {
+      if ((b.weight || 0) !== (a.weight || 0)) return (b.weight || 0) - (a.weight || 0);
+      return (b.confidence || 0) - (a.confidence || 0);
+    })
+    .map(item => item.term)
+  ).slice(0, limit);
+}
+
+function transferableTermsFromResume(analysis) {
+  const safe = provenSkillTerms(analysis, 10);
+  const transferable = safe.filter(term => /safety|communication|teamwork|documentation|customer service|quality|accuracy|reliable|attendance|problem solving|tools|training|fast-paced|production|cleaning|organization|attention/i.test(term));
+  return transferable.length ? transferable.slice(0, 6) : safe.slice(0, 6);
+}
+
+function buildDiagnosis(resumeText, jobText, jobType, analysis, evidence, mismatch) {
+  const matchedHigh = evidence.directHighMatches.length;
+  const weighted = analysis.weightedCoverage;
+  const evidenceCoverage = evidence.coverage;
+  const selectedLabel = labelForJobType(jobType);
+  const suggestedText = mismatch ? ` This job post looks closer to ${mismatch.suggestedLabel}.` : "";
+
+  if (mismatch) {
+    return {
+      type: "wrong_job_type",
+      title: "Possible Wrong Job Type Selected",
+      message: `The job description may not match the job type you selected. You picked ${mismatch.selectedLabel}, but the job post looks closer to ${mismatch.suggestedLabel}. Switch the job type for a more accurate report, or keep going if you selected it on purpose.`,
+      canGenerateJobSpecific: false,
+      useTransferableOnly: true,
+      suggestedLabel: mismatch.suggestedLabel
+    };
+  }
+
+  if (!evidence.proofSatisfied) {
+    return {
+      type: "weak_evidence",
+      title: "Weak Evidence for This Job Type",
+      message: `Your resume does not show enough direct proof for ${selectedLabel} yet. To avoid adding false experience, we will not generate job-specific wording for this role. Add real training, certification, or experience only if it is true.`,
+      canGenerateJobSpecific: false,
+      useTransferableOnly: false
+    };
+  }
+
+  if (weighted < 30 && evidenceCoverage < 35) {
+    return {
+      type: "weak_evidence",
+      title: "Weak Match",
+      message: `Your resume and this job post are not close enough yet. We do not want to force a bad match, so use the direction notes before trying to rewrite this resume.${suggestedText}`,
+      canGenerateJobSpecific: false,
+      useTransferableOnly: false
+    };
+  }
+
+  if (weighted < 50 && evidenceCoverage < 55) {
+    return {
+      type: "transferable",
+      title: "Transferable Match",
+      message: "Your resume shows some useful experience, but not enough direct proof for this job type yet. Starter wording will stay general and only use transferable skills already found in your resume.",
+      canGenerateJobSpecific: false,
+      useTransferableOnly: true
+    };
+  }
+
+  if (weighted < 58 && (evidenceCoverage >= 45 || matchedHigh >= 2)) {
+    return {
+      type: "wording_gap",
+      title: "Wording Gap",
+      message: "Your resume shows related proof for this type of job, but the wording or resume structure is not strong enough yet. We will translate only the experience your resume already proves into more ATS-friendly wording.",
+      canGenerateJobSpecific: true,
+      useTransferableOnly: false
+    };
+  }
+
+  if (analysis.score >= 85 && matchedHigh >= 2) {
+    return {
+      type: "strong_match",
+      title: "Strong Match",
+      message: "Your resume already lines up well with this job. Starter wording below is still limited to what your resume already proves.",
+      canGenerateJobSpecific: true,
+      useTransferableOnly: false
+    };
+  }
+
+  if (analysis.score >= 70 || weighted >= 60) {
+    return {
+      type: "good_match",
+      title: "Good Match",
+      message: "Your resume is a good match for this job. A few wording gaps may still be hurting the ATS match, so the starter wording stays honest and based only on detected proof.",
+      canGenerateJobSpecific: true,
+      useTransferableOnly: false
+    };
+  }
+
+  return {
+    type: "transferable",
+    title: "Transferable Match",
+    message: "Your resume has some overlap with this job, but the direct proof is still limited. Use transferable wording only and add job-specific proof only if it is true.",
+    canGenerateJobSpecific: false,
+    useTransferableOnly: true
+  };
+}
+
+function buildDirectionNotes(jobType, analysis) {
+  const proofNeeded = (analysis.requiredTerms || proofTermsForJobType(jobType)).slice(0, 8).join(", ");
+  const suggestedRoles = analysis.mismatch?.alternatives?.map(item => item.label).join(", ");
+  const missing = (analysis.criticalMissing || []).slice(0, 5).map(item => item.term).join(", ");
+
+  if (analysis.diagnosis?.type === "wrong_job_type") {
+    return `Right direction: this job post appears closer to ${analysis.mismatch.suggestedLabel}. Change the job type and run the scan again for a cleaner report. Other close options: ${suggestedRoles || analysis.mismatch.suggestedLabel}.`;
+  }
+
+  if (analysis.diagnosis?.type === "weak_evidence") {
+    return `Right direction: do not force this resume into ${labelForJobType(jobType)} yet. Add real proof first if you have it${proofNeeded ? `, such as ${proofNeeded}` : ""}. If not, apply to roles closer to what your resume already shows.`;
+  }
+
+  if (analysis.diagnosis?.type === "transferable") {
+    return `Right direction: use transferable skills only for now. Add direct job proof only if it is true${proofNeeded ? `, especially ${proofNeeded}` : ""}.`;
+  }
+
+  if (analysis.diagnosis?.type === "wording_gap") {
+    return `Right direction: your experience looks related, but the ATS wording is off. Add exact job-post wording only where your resume already proves it${missing ? `, starting with ${missing}` : ""}.`;
+  }
+
+  return `Right direction: keep the resume honest and tighten the ATS wording. Missing keywords are suggestions only. Add them only if they are true${missing ? `, especially ${missing}` : ""}.`;
+}
+
+function buildStarterSummary(jobType, analysis) {
+  const safeSkills = provenSkillTerms(analysis, 5);
+  const transferable = transferableTermsFromResume(analysis);
+  const family = getJobFamily(jobType);
+  const skillText = safeSkills.length ? safeSkills.join(", ") : "reliability, communication, safety, and task completion";
+  const transferableText = transferable.length ? transferable.join(", ") : "following instructions, completing assigned work, and learning new tasks";
+  const familyName = displayFamily(family);
+
+  if (analysis.diagnosis?.type === "weak_evidence") {
+    return `Your resume does not show enough direct proof for ${labelForJobType(jobType)} yet, so this tool will not create job-specific resume wording from thin air. Use this scan to identify what real experience, training, or certification you would need before applying.`;
+  }
+
+  if (analysis.diagnosis?.type === "wrong_job_type") {
+    return `The selected job type may be wrong for this job post, so this starter summary stays general. Your resume currently shows transferable strengths such as ${transferableText}, but you should switch the job type to ${analysis.mismatch?.suggestedLabel || "the closer role"} for a more accurate report.`;
+  }
+
+  if (analysis.diagnosis?.type === "transferable") {
+    return `Reliable candidate with transferable experience including ${transferableText}. Able to follow instructions, support daily operations, communicate clearly, and learn new processes without adding experience the resume does not prove.`;
+  }
+
+  if (analysis.diagnosis?.type === "wording_gap") {
+    return `Reliable candidate with real experience related to ${familyName}, including ${skillText}. Able to present proven experience in more ATS-friendly wording while keeping the resume honest and based on work already shown.`;
+  }
+
+  return `Reliable candidate with experience related to ${familyName}, including ${skillText}. Able to follow instructions, support daily goals, and apply proven skills in a way ATS systems can clearly read.`;
+}
+
+function buildStarterBullets(jobType, analysis) {
+  const safeSkills = provenSkillTerms(analysis, 6);
+  const transferable = transferableTermsFromResume(analysis);
+  const family = getJobFamily(jobType);
+  const primary = safeSkills[0] || transferable[0] || "assigned tasks";
+  const secondary = safeSkills[1] || transferable[1] || "workplace procedures";
+  const third = safeSkills[2] || transferable[2] || "team support";
+
+  if (analysis.diagnosis?.type === "weak_evidence") {
+    const proof = (analysis.requiredTerms || proofTermsForJobType(jobType)).slice(0, 5).join(", ");
+    return [
+      `Do not add ${labelForJobType(jobType)} experience unless the resume can honestly prove it.`,
+      proof ? `Add real proof first if you have it, such as ${proof}.` : "Add real job-specific proof first if you have it.",
+      "Apply to roles closer to the experience already shown, or get the needed training before using job-specific wording."
+    ].map(item => `• ${item}`).join("\n");
+  }
+
+  if (analysis.diagnosis?.type === "wrong_job_type") {
+    return [
+      `Switch the job type to ${analysis.mismatch?.suggestedLabel || "the closer role"} and run the scan again for a more accurate report.`,
+      `Keep only proven resume skills such as ${transferable.slice(0, 3).join(", ") || "reliability, safety, and communication"}.`,
+      "Do not force this resume into the wrong job category just to raise the score."
+    ].map(item => `• ${item}`).join("\n");
+  }
+
+  if (analysis.diagnosis?.type === "transferable") {
+    return [
+      `Used ${primary} and ${secondary} to complete assigned work while following workplace expectations.`,
+      `Applied ${third}, communication, and attention to detail to support daily operations.`,
+      "Worked in changing environments while staying reliable, organized, and focused on honest transferable strengths."
+    ].map(item => `• ${item}`).join("\n");
+  }
+
+  const familyBullets = {
+    manufacturing: [
+      `Operated, monitored, or supported production work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "machine operation, safety, and quality checks"}.`,
+      `Followed safety, quality, and production procedures while completing tasks related to ${primary} and ${secondary}.`,
+      `Kept work moving in a fast-paced environment by using documented experience with ${safeSkills.slice(2, 5).join(", ") || "equipment, materials, and teamwork"}.`
+    ],
+    warehouse: [
+      `Supported warehouse or material handling work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "loading, unloading, and safety"}.`,
+      `Followed instructions and safety procedures while handling tasks related to ${primary} and ${secondary}.`,
+      `Maintained accuracy, reliability, and teamwork while supporting daily warehouse operations.`
+    ],
+    maintenance: [
+      `Supported maintenance or repair work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "tools, troubleshooting, and repairs"}.`,
+      `Completed assigned tasks while following safety procedures, work instructions, and quality expectations.`,
+      `Used hands-on experience with ${primary} and ${secondary} to help solve problems and keep work moving.`
+    ],
+    apartment: [
+      `Supported property or apartment maintenance work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "repairs, tools, and customer service"}.`,
+      `Completed assigned repair or turnover tasks while following safety, cleanliness, and communication expectations.`,
+      `Used hands-on experience with ${primary} and ${secondary} to support daily maintenance needs.`
+    ],
+    customer_service: [
+      `Helped customers or team members using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "communication, problem solving, and documentation"}.`,
+      `Handled questions, issues, or assigned tasks with professionalism, patience, and attention to detail.`,
+      `Used ${primary} and ${secondary} to support service goals while keeping communication clear.`
+    ],
+    healthcare_support: [
+      `Supported healthcare-related work using only proven resume skills such as ${safeSkills.slice(0, 3).join(", ") || "patient care, documentation, and safety"}.`,
+      `Followed safety, documentation, and privacy expectations while completing assigned care-support tasks.`,
+      `Communicated clearly and stayed attentive to patient, resident, or team needs shown in the resume.`
+    ],
+    security: [
+      `Supported safety or security work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "observation, documentation, and professionalism"}.`,
+      `Followed site procedures while communicating clearly and documenting issues accurately.`,
+      `Maintained professionalism, awareness, and reliability during assigned security responsibilities.`
+    ],
+    it_helpdesk: [
+      `Supported technical or user-facing work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "troubleshooting, documentation, and customer service"}.`,
+      `Followed step-by-step procedures to document issues, communicate clearly, and support problem solving.`,
+      `Used ${primary} and ${secondary} to help users, teams, or systems stay productive.`
+    ]
+  };
+
+  const bullets = familyBullets[family] || [
+    `Used proven resume skills such as ${safeSkills.slice(0, 3).join(", ") || "reliability, communication, and safety"} to complete assigned work.`,
+    `Followed instructions, workplace procedures, and daily expectations while supporting team goals.`,
+    `Stayed dependable, organized, and focused on accurate work in situations related to ${primary} and ${secondary}.`
+  ];
+
+  return bullets.slice(0, 3).map(item => `• ${item}`).join("\n");
+}
+
+function buildSummary(jobType, analysis) {
+  return buildStarterSummary(jobType, analysis);
 }
 
 function buildBullets(jobType, analysis) {
-  const missing = analysis.criticalMissing.slice(0, 8).map(item => item.term);
-  const matched = analysis.matched.slice(0, 8).map(item => item.term);
-  const base = {
-    manufacturing: ["Operated and monitored manufacturing equipment in a fast-paced production environment while following safety and quality standards.", "Completed machine setup, cleaning, restarts, material handling, and basic troubleshooting to keep production moving.", "Performed quality checks and communicated issues early to reduce downtime and protect production flow."],
-    warehouse: ["Moved, loaded, unloaded, picked, packed, and organized materials while following warehouse safety procedures.", "Used warehouse equipment and inventory processes to support shipping, receiving, order picking, and daily production goals.", "Maintained accuracy, speed, and attention to detail in a fast-paced warehouse environment."],
-    maintenance: ["Assisted with repair, troubleshooting, installation, and preventive maintenance tasks using hand tools and power tools safely.", "Completed work order support by identifying issues, following instructions, and keeping work areas clean and safe.", "Supported basic electrical, mechanical, plumbing, and building repair tasks with attention to safety and quality."],
-    apartment: ["Completed apartment maintenance support including work orders, turnovers, basic repairs, painting, grounds, and customer service.", "Assisted with electrical, plumbing, carpentry, HVAC, and preventive maintenance tasks while keeping units safe and clean.", "Communicated maintenance issues clearly and helped prepare apartments for resident move-ins."],
-    cdl: ["Maintained a safety-first mindset while inspecting equipment, following procedures, and completing transportation work reliably.", "Used CDL-A training, TWIC credential, and hands-on industrial experience to support transportation and logistics needs.", "Followed instructions, documented issues, and communicated clearly to protect safety and delivery expectations."],
-    delivery: ["Completed deliveries while following route instructions, safe driving habits, customer service expectations, and time deadlines.", "Loaded, unloaded, handled, and organized packages or materials while protecting accuracy and safety.", "Communicated with customers and supervisors to resolve route, delivery, and schedule issues."],
-    construction: ["Supported construction and carpentry tasks using hand tools, power tools, measuring, installation, and job site cleanup.", "Assisted with doors, trim, framing, materials, and daily labor tasks while following safety procedures.", "Worked with crews to complete hands-on tasks in changing job site conditions."],
-    electrician: ["Assisted electricians with wiring, outlets, switches, fixtures, troubleshooting, installation, and tool setup.", "Followed safety procedures while supporting residential or commercial electrical work under supervision.", "Learned trade tasks through hands-on repetition, clear communication, and attention to detail."],
-    welding: ["Supported welding and fabrication work through measuring, cutting, grinding, fitting, setup, and shop cleanup.", "Followed safety and quality expectations while using tools and preparing materials for fabrication tasks.", "Read instructions, checked measurements, and inspected work to reduce mistakes and rework."],
-    diesel: ["Assisted with mechanical inspections, preventive maintenance, troubleshooting, repair support, and tool preparation.", "Followed safety procedures while working around vehicles, equipment, parts, and shop tools.", "Documented issues clearly and supported technicians with diagnostics, cleaning, parts movement, and repair tasks."],
-    security: ["Patrolled assigned areas, monitored activity, observed safety concerns, and documented incidents professionally.", "Provided customer service while enforcing site rules, access control procedures, and emergency response expectations.", "Maintained calm communication and professionalism during conflict, questions, or unusual activity."],
-    customer_service: ["Helped customers by listening, answering questions, solving problems, and documenting support details clearly.", "Used professional communication and patience to de-escalate issues and protect customer satisfaction.", "Worked in a fast-paced environment while staying organized, respectful, and focused on solutions."],
-    admin: ["Supported office operations through scheduling, email, phone calls, filing, data entry, and record management.", "Used organization and communication skills to keep daily tasks, calendars, and documents accurate.", "Assisted teams and customers by following procedures, tracking information, and handling details professionally."],
-    dataentry: ["Entered, reviewed, and organized data with accuracy, attention to detail, and consistent typing habits.", "Maintained records, spreadsheets, files, and documentation while following office procedures.", "Checked information for errors and communicated missing or unclear details before submission."],
-    sales_retail: ["Provided customer service, product support, sales assistance, cash handling, and store operations support.", "Maintained inventory, merchandising, cleanliness, and teamwork in a customer-facing retail environment.", "Used communication and product knowledge to answer questions, recommend items, and support sales goals."],
-    food_service: ["Supported food service operations through customer service, food prep, cleaning, sanitation, and teamwork.", "Worked in a fast-paced restaurant environment while following food safety, accuracy, and service standards.", "Handled orders, POS tasks, stocking, and cleaning while helping the team meet rush-hour demand."],
-    hospitality: ["Provided guest service through check-in support, reservations, issue resolution, and professional communication.", "Supported hotel or hospitality operations by keeping areas clean, organized, and ready for guests.", "Handled guest questions and concerns with patience, accuracy, and attention to detail."],
-    healthcare_support: ["Supported patient care tasks while following safety, documentation, infection control, and teamwork expectations.", "Provided compassionate assistance to patients, residents, or clients while respecting privacy and procedures.", "Communicated changes, needs, and concerns clearly to supervisors or healthcare team members."],
-    it_helpdesk: ["Provided technical support by troubleshooting user issues, documenting tickets, and following step-by-step procedures.", "Helped resolve hardware, software, login, password, and basic network problems with clear communication.", "Used customer service skills and technical learning ability to support users remotely or in person."],
-    janitorial: ["Cleaned, sanitized, stocked, and maintained assigned areas while following safety and quality standards.", "Completed floor care, trash removal, restroom cleaning, and housekeeping tasks with attention to detail.", "Kept work areas organized and communicated supply or maintenance issues when needed."],
-    call_center: ["Handled calls, messages, scheduling, dispatch, documentation, and customer questions in a high-volume environment.", "Used phone etiquette, typing, CRM-style tools, and clear communication to track and resolve issues.", "Remained calm and organized while helping customers, drivers, technicians, or internal teams."],
-    apprenticeship: ["Showed strong willingness to learn by taking on hands-on tasks, following training, and improving through repetition.", "Built real work experience in fast-paced environments requiring reliability, attendance, safety, and teamwork.", "Supported daily operations by staying flexible, learning new responsibilities, and helping the team meet goals."]
-  }[getJobFamily(jobType)] || [
-    "Worked in a team environment while following company procedures, safety rules, and daily expectations.",
-    "Learned new tasks quickly and supported supervisors by staying reliable, organized, and ready to help where needed.",
-    "Used communication, attention to detail, and problem-solving to support daily work goals."
-  ];
-
-  const keywordBullet = missing.length
-    ? `Add honest examples that show these high-priority job-post keywords if they apply: ${missing.join(", ")}.`
-    : `Your resume already covers strong matches like ${matched.join(", ")}. Strengthen them with numbers and examples.`;
-
-  return [...base, keywordBullet].map(item => `• ${item}`).join("\n");
+  return buildStarterBullets(jobType, analysis);
 }
 
 
@@ -1026,6 +1404,41 @@ function renderKeywordGroup(container, title, items = [], note = "") {
   container.appendChild(group);
 }
 
+function renderDiagnosis(container, analysis) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  const title = document.createElement("h4");
+  title.textContent = analysis.diagnosis?.title || "Resume Direction";
+  title.style.margin = "0 0 8px";
+  title.style.color = "#f4f7fb";
+  container.appendChild(title);
+
+  const message = document.createElement("p");
+  message.textContent = analysis.diagnosis?.message || "Use this report to improve ATS wording without adding anything you have not actually done.";
+  message.style.margin = "0 0 10px";
+  message.style.color = "#d6dbe6";
+  message.style.lineHeight = "1.55";
+  container.appendChild(message);
+
+  const proof = document.createElement("p");
+  const proofMatches = (analysis.proofMatches || []).map(item => item.term).slice(0, 6);
+  proof.textContent = proofMatches.length
+    ? `Resume proof found: ${proofMatches.join(", ")}.`
+    : "Resume proof found: limited direct proof for this job type.";
+  proof.style.margin = "0 0 10px";
+  proof.style.color = "#a7b0bf";
+  proof.style.lineHeight = "1.45";
+  container.appendChild(proof);
+
+  const direction = document.createElement("p");
+  direction.textContent = analysis.directionNote || "Missing keywords are suggestions only. Add them only if they are true.";
+  direction.style.margin = "0";
+  direction.style.color = "#a7ffce";
+  direction.style.lineHeight = "1.45";
+  container.appendChild(direction);
+}
+
 function renderMissingKeywords(container, analysis) {
   container.innerHTML = "";
   const summary = document.createElement("p");
@@ -1091,9 +1504,10 @@ function analyzeAndRender() {
   const scoreMessage = document.getElementById("scoreMessage");
   const scoreBar = document.getElementById("scoreBar");
   if (scoreValue) scoreValue.textContent = analysis.score;
-  if (scoreMessage) scoreMessage.textContent = getScoreMessage(analysis.score);
+  if (scoreMessage) scoreMessage.textContent = getScoreMessage(analysis.score, analysis);
   if (scoreBar) scoreBar.style.width = `${analysis.score}%`;
 
+  renderDiagnosis(document.getElementById("diagnosisOutput"), analysis);
   renderMissingKeywords(document.getElementById("missingKeywords"), analysis);
   renderMatchedKeywords(document.getElementById("matchedKeywords"), analysis);
 
