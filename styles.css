@@ -799,3 +799,101 @@ footer {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Professional v2: About, pricing, privacy, and terms live inside hamburger menu */
+.drawer-pages {
+  border-top: 1px solid var(--line) !important;
+  border-bottom: 1px solid var(--line) !important;
+  padding: 16px 0 !important;
+  margin: 0 0 18px !important;
+  display: grid !important;
+  gap: 10px !important;
+}
+
+.drawer-section-label {
+  color: var(--accent-2) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.13em !important;
+  font-weight: 900 !important;
+  font-size: 0.72rem !important;
+  margin: 0 0 2px !important;
+}
+
+.drawer-page-button {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  border: 1px solid var(--line) !important;
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--text) !important;
+  border-radius: 16px !important;
+  padding: 14px 16px !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+  text-align: left !important;
+}
+
+.drawer-page-button::after {
+  content: '+';
+  color: var(--muted);
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.drawer-page-button.active {
+  border-color: rgba(0, 212, 166, 0.35) !important;
+  background: rgba(0, 212, 166, 0.08) !important;
+}
+
+.drawer-page-button.active::after {
+  content: '−';
+  color: var(--accent-2);
+}
+
+.drawer-page-panel {
+  border: 1px solid var(--line) !important;
+  background: rgba(255,255,255,0.035) !important;
+  border-radius: 18px !important;
+  padding: 16px !important;
+  color: var(--muted) !important;
+  line-height: 1.58 !important;
+}
+
+.drawer-page-panel h3 {
+  color: var(--text) !important;
+  margin: 0 0 10px !important;
+  font-size: 1.05rem !important;
+  letter-spacing: -0.02em !important;
+}
+
+.drawer-page-panel p {
+  margin: 0 0 12px !important;
+}
+
+.drawer-page-panel p:last-child {
+  margin-bottom: 0 !important;
+}
+
+.drawer-plan-grid {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+.drawer-plan-grid > div {
+  border: 1px solid var(--line) !important;
+  border-radius: 14px !important;
+  background: rgba(255,255,255,0.04) !important;
+  padding: 12px !important;
+}
+
+.drawer-plan-grid strong {
+  color: var(--text) !important;
+}
+
+.tiny-note {
+  color: var(--accent-2) !important;
+  font-size: 0.88rem !important;
+  font-weight: 800 !important;
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, find missing keywords, catch red flags, and track applications." />
   <title>GET ME PAST ATS</title>
-  <link rel="stylesheet" href="styles.css?v=professional-v1" />
+  <link rel="stylesheet" href="styles.css?v=professional-v2" />
 </head>
 <body>
   <header class="hero" id="home">
@@ -35,10 +35,48 @@
         <a class="menu-item" href="#home">Home</a>
         <a class="menu-item" href="#analyzer">Resume Analyzer</a>
         <a class="menu-item" href="#tracker">Application Tracker</a>
-        <a class="menu-item" href="#about">About</a>
-        <a class="menu-item" href="#pricing">Free vs Pro</a>
-        <a class="menu-item" href="#privacy">Privacy</a>
-        <a class="menu-item" href="#terms">Terms</a>
+      </div>
+
+      <div class="drawer-pages" aria-label="Business information">
+        <p class="drawer-section-label">Company</p>
+
+        <button class="drawer-page-button" type="button" data-drawer-page="aboutDrawer">About GET ME PAST ATS</button>
+        <div class="drawer-page-panel" id="aboutDrawer" hidden>
+          <h3>Built by someone who got tired of applying and hearing nothing back.</h3>
+          <p>I built GET ME PAST ATS because I know what it feels like to apply to job after job and never hear back. A lot of people are qualified, willing to work, and ready to learn, but their resume never makes it to a real person.</p>
+          <p>Most job seekers do not know how to tailor a resume to a job post, what keywords are missing, or what red flags may catch attention before a recruiter sees them.</p>
+          <p>This tool was created to help regular people stop applying blind, fix weak spots, track applications, and prepare better before they apply.</p>
+        </div>
+
+        <button class="drawer-page-button" type="button" data-drawer-page="pricingDrawer">Free vs Pro</button>
+        <div class="drawer-page-panel" id="pricingDrawer" hidden>
+          <h3>Free now. Pro features later.</h3>
+          <div class="drawer-plan-grid">
+            <div>
+              <strong>Free</strong>
+              <p>Resume score, missing keywords, basic red flags, and application tracker.</p>
+            </div>
+            <div>
+              <strong>Pro idea</strong>
+              <p>Unlimited scans, PDF upload, PDF export, interview questions, follow-up emails, and stronger rewrite tools.</p>
+            </div>
+          </div>
+          <p class="tiny-note">Payments are not turned on yet.</p>
+        </div>
+
+        <button class="drawer-page-button" type="button" data-drawer-page="privacyDrawer">Privacy</button>
+        <div class="drawer-page-panel" id="privacyDrawer" hidden>
+          <h3>Simple privacy promise</h3>
+          <p>GET ME PAST ATS uses account information and saved application data to help users access their tracker. Resume text and job posts are used to show results inside the tool.</p>
+          <p>Do not paste Social Security numbers, driver’s license numbers, banking details, or other sensitive personal information into the analyzer.</p>
+        </div>
+
+        <button class="drawer-page-button" type="button" data-drawer-page="termsDrawer">Terms</button>
+        <div class="drawer-page-panel" id="termsDrawer" hidden>
+          <h3>No interview guarantee</h3>
+          <p>This tool can help improve resume wording, catch missing keywords, and organize job applications, but it cannot guarantee interviews, job offers, or hiring decisions.</p>
+          <p>Always keep your resume honest. Use the suggested wording as a starting point and edit it to match your real experience.</p>
+        </div>
       </div>
 
       <div class="drawer-account" id="account">
@@ -141,26 +179,6 @@
         <h3>Application Tracker</h3>
         <p>Save companies, job titles, pay, status, and follow-up details so nothing gets lost.</p>
       </article>
-    </section>
-
-    <section class="panel about-panel" id="about">
-      <div class="about-layout">
-        <div>
-          <p class="eyebrow">About</p>
-          <h2>Built by someone who got tired of applying and hearing nothing back.</h2>
-        </div>
-        <div class="about-copy">
-          <p>
-            I built GET ME PAST ATS because I know what it feels like to apply to job after job and never hear back. A lot of people are qualified, willing to work, and ready to learn, but their resume never makes it to a real person.
-          </p>
-          <p>
-            Most job seekers do not know how to tailor a resume to a job post. They do not know what keywords are missing, what dates look confusing, or what red flags a hiring system may catch before a recruiter ever sees them.
-          </p>
-          <p>
-            This tool was created to help regular people stop applying blind, fix weak spots, track applications, and prepare better before they apply.
-          </p>
-        </div>
-      </div>
     </section>
 
     <section class="panel" id="analyzer">
@@ -337,52 +355,6 @@
       </div>
     </section>
 
-    <section class="panel pricing-panel" id="pricing">
-      <div class="section-heading center-heading">
-        <p class="eyebrow">Coming Later</p>
-        <h2>Free now. Pro features later.</h2>
-        <p>This section builds trust before paywalls. Payments are not turned on yet.</p>
-      </div>
-      <div class="pricing-grid">
-        <article class="plan-card">
-          <p class="card-label">Free</p>
-          <h3>For quick checks</h3>
-          <ul class="plan-list">
-            <li>Resume match score</li>
-            <li>Missing keywords</li>
-            <li>Basic red flags</li>
-            <li>Application tracker</li>
-          </ul>
-        </article>
-        <article class="plan-card featured-plan">
-          <p class="card-label">Pro idea</p>
-          <h3>For serious job searching</h3>
-          <ul class="plan-list">
-            <li>Unlimited scans</li>
-            <li>PDF resume upload</li>
-            <li>Export tailored resume as PDF</li>
-            <li>Interview questions</li>
-            <li>Follow-up email generator</li>
-          </ul>
-        </article>
-      </div>
-    </section>
-
-    <section class="legal-grid" aria-label="Trust pages">
-      <article class="panel legal-card" id="privacy">
-        <p class="eyebrow">Privacy</p>
-        <h2>Simple privacy promise</h2>
-        <p>GET ME PAST ATS uses account information and saved application data to help users access their tracker. Resume text and job posts are used to show results inside the tool.</p>
-        <p>The goal is simple: help job seekers improve applications. Do not paste Social Security numbers, driver’s license numbers, banking details, or other sensitive personal information into the analyzer.</p>
-      </article>
-
-      <article class="panel legal-card" id="terms">
-        <p class="eyebrow">Terms</p>
-        <h2>No interview guarantee</h2>
-        <p>This tool can help improve resume wording, catch missing keywords, and organize job applications, but it cannot guarantee interviews, job offers, or hiring decisions.</p>
-        <p>Always keep your resume honest. Use the suggested wording as a starting point and edit it to match your real experience.</p>
-      </article>
-    </section>
   </main>
 
   <footer>
@@ -414,6 +386,27 @@
       }
 
       openAccountButtons.forEach(button => button.addEventListener("click", openAccountDrawer));
+
+      const drawerButtons = document.querySelectorAll("[data-drawer-page]");
+      drawerButtons.forEach(button => {
+        button.addEventListener("click", () => {
+          const targetId = button.getAttribute("data-drawer-page");
+          const targetPanel = document.getElementById(targetId);
+          const isOpen = targetPanel && !targetPanel.hidden;
+
+          document.querySelectorAll(".drawer-page-panel").forEach(panel => {
+            panel.hidden = true;
+          });
+          document.querySelectorAll(".drawer-page-button").forEach(item => {
+            item.classList.remove("active");
+          });
+
+          if (targetPanel && !isOpen) {
+            targetPanel.hidden = false;
+            button.classList.add("active");
+          }
+        });
+      });
     });
   </script>
 </body>
