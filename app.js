@@ -1,3 +1,27 @@
+import { firebaseConfig } from "./firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  orderBy,
+  serverTimestamp,
+  getDocs,
+  writeBatch
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 const stopWords = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
   "job", "work", "team", "must", "able", "ability", "position", "company", "their", "they", "all", "can", "may",
@@ -457,12 +481,115 @@ function analyzeAndRender() {
   document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+let auth = null;
+let db = null;
+let currentUser = null;
+let cloudItems = [];
+let unsubscribeTracker = null;
+
+function hasFirebaseConfig(config) {
+  return Boolean(
+    config &&
+    config.apiKey &&
+    config.projectId &&
+    !String(config.apiKey).includes("PASTE_") &&
+    !String(config.projectId).includes("PASTE_")
+  );
+}
+
+const firebaseEnabled = hasFirebaseConfig(firebaseConfig);
+
+if (firebaseEnabled) {
+  try {
+    const firebaseApp = initializeApp(firebaseConfig);
+    auth = getAuth(firebaseApp);
+    db = getFirestore(firebaseApp);
+  } catch (error) {
+    console.error("Firebase failed to initialize:", error);
+  }
+}
+
+function getCurrentUser() {
+  if (firebaseEnabled && currentUser) {
+    return {
+      uid: currentUser.uid,
+      name: currentUser.displayName || currentUser.email?.split("@")[0] || "User",
+      email: currentUser.email
+    };
+  }
+
+  try {
+    return JSON.parse(localStorage.getItem("gmpt_current_user") || "null");
+  } catch (error) {
+    localStorage.removeItem("gmpt_current_user");
+    return null;
+  }
+}
+
+function cleanEmail(email) {
+  return normalize(email || "guest").replace(/\s+/g, "_");
+}
+
+function getTrackerKey() {
+  const user = getCurrentUser();
+  return user?.email ? `gmpt_tracker_${cleanEmail(user.email)}` : "gmpt_tracker_guest";
+}
+
+function escapeHTML(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function loadTracker() {
-  return JSON.parse(localStorage.getItem("gmpt_tracker") || "[]");
+  if (firebaseEnabled && db && currentUser) return cloudItems;
+
+  try {
+    return JSON.parse(localStorage.getItem(getTrackerKey()) || "[]");
+  } catch (error) {
+    return [];
+  }
 }
 
 function saveTracker(items) {
-  localStorage.setItem("gmpt_tracker", JSON.stringify(items));
+  localStorage.setItem(getTrackerKey(), JSON.stringify(items));
+}
+
+function renderAccount() {
+  const user = getCurrentUser();
+  const navUser = document.getElementById("navUser");
+  const accountStatus = document.getElementById("accountStatus");
+  const accountNote = document.getElementById("accountNote");
+  const trackerNote = document.getElementById("trackerNote");
+  const signOutBtn = document.getElementById("signOutBtn");
+  const accountForm = document.getElementById("accountForm");
+
+  if (!firebaseEnabled || !auth || !db) {
+    navUser.textContent = "Local mode";
+    accountStatus.textContent = "Firebase not connected yet";
+    accountNote.textContent = "The app still works locally. Add your Firebase config to firebase-config.js to turn on real cloud accounts.";
+    trackerNote.textContent = "Local tracker mode: saved applications stay on this browser until Firebase is connected.";
+    signOutBtn.hidden = true;
+    return;
+  }
+
+  if (user) {
+    navUser.textContent = `Signed in: ${user.name}`;
+    accountStatus.textContent = `${user.name}`;
+    accountNote.textContent = `${user.email} — applications are saved to your Firebase cloud database.`;
+    trackerNote.textContent = `Tracking applications for ${user.name}. Data syncs with Firebase.`;
+    signOutBtn.hidden = false;
+    accountForm.reset();
+  } else {
+    navUser.textContent = "Not signed in";
+    accountStatus.textContent = "No user signed in";
+    accountNote.textContent = "Create an account or sign in to save your tracker in Firebase.";
+    trackerNote.textContent = "Sign in above to save applications to the cloud. You can still analyze resumes without signing in.";
+    signOutBtn.hidden = true;
+  }
 }
 
 function renderTracker() {
@@ -478,14 +605,230 @@ function renderTracker() {
   items.forEach((item, index) => {
     const row = document.createElement("tr");
     row.innerHTML = `
-      <td>${item.date}</td>
-      <td>${item.company}</td>
-      <td>${item.role}</td>
-      <td>${item.pay || "—"}</td>
-      <td>${item.status}</td>
-      <td><button class="delete-row" data-index="${index}">Delete</button></td>
+      <td>${escapeHTML(item.date)}</td>
+      <td>${escapeHTML(item.company)}</td>
+      <td>${escapeHTML(item.role)}</td>
+      <td>${escapeHTML(item.pay || "—")}</td>
+      <td>${escapeHTML(item.status)}</td>
+      <td><button class="delete-row" data-index="${index}" data-id="${escapeHTML(item.id || "")}">Delete</button></td>
     `;
     rows.appendChild(row);
+  });
+}
+
+async function signIn(event) {
+  event.preventDefault();
+
+  if (!firebaseEnabled || !auth || !db) {
+    const name = document.getElementById("userName").value.trim();
+    const email = document.getElementById("userEmail").value.trim().toLowerCase();
+
+    if (!name || !email) {
+      alert("Firebase is not connected yet. For local mode, enter your name and email.");
+      return;
+    }
+
+    localStorage.setItem("gmpt_current_user", JSON.stringify({
+      name,
+      email,
+      signedInAt: new Date().toISOString()
+    }));
+
+    event.target.reset();
+    renderAccount();
+    renderTracker();
+    return;
+  }
+
+  const email = document.getElementById("userEmail").value.trim().toLowerCase();
+  const password = document.getElementById("userPassword").value;
+
+  if (!email || !password) {
+    alert("Enter your email and password.");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    alert(error.message || "Could not sign in.");
+  }
+}
+
+async function createAccount() {
+  if (!firebaseEnabled || !auth || !db) {
+    alert("Firebase is not connected yet. Add your Firebase config first, then create real accounts.");
+    return;
+  }
+
+  const name = document.getElementById("userName").value.trim();
+  const email = document.getElementById("userEmail").value.trim().toLowerCase();
+  const password = document.getElementById("userPassword").value;
+
+  if (!name || !email || !password) {
+    alert("Enter name, email, and password to create an account.");
+    return;
+  }
+
+  if (password.length < 6) {
+    alert("Password must be at least 6 characters.");
+    return;
+  }
+
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(credential.user, { displayName: name });
+    currentUser = credential.user;
+    renderAccount();
+  } catch (error) {
+    alert(error.message || "Could not create account.");
+  }
+}
+
+async function signOut() {
+  if (firebaseEnabled && auth) {
+    await firebaseSignOut(auth);
+    return;
+  }
+
+  localStorage.removeItem("gmpt_current_user");
+  renderAccount();
+  renderTracker();
+}
+
+function exportTrackerCSV() {
+  const items = loadTracker();
+  if (!items.length) {
+    alert("No applications to export yet.");
+    return;
+  }
+
+  const headers = ["Date", "Company", "Role", "Pay", "Status"];
+  const rows = items.map(item => [item.date, item.company, item.role, item.pay || "", item.status]);
+  const csv = [headers, ...rows]
+    .map(row => row.map(value => `"${String(value || "").replace(/"/g, '""')}"`).join(","))
+    .join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const user = getCurrentUser();
+  link.href = url;
+  link.download = `${user?.name ? cleanEmail(user.name) : "guest"}-job-tracker.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function clearTracker() {
+  const items = loadTracker();
+  if (!items.length) return;
+  const user = getCurrentUser();
+  const label = user ? `${user.name}'s tracker` : "the guest tracker";
+  if (!confirm(`Clear ${label}? This cannot be undone.`)) return;
+
+  if (firebaseEnabled && db && currentUser) {
+    const snapshot = await getDocs(collection(db, "users", currentUser.uid, "applications"));
+    const batch = writeBatch(db);
+    snapshot.forEach(documentSnapshot => batch.delete(documentSnapshot.ref));
+    await batch.commit();
+    return;
+  }
+
+  saveTracker([]);
+  renderTracker();
+}
+
+function watchCloudTracker() {
+  if (unsubscribeTracker) {
+    unsubscribeTracker();
+    unsubscribeTracker = null;
+  }
+
+  cloudItems = [];
+
+  if (!firebaseEnabled || !db || !currentUser) {
+    renderTracker();
+    return;
+  }
+
+  const trackerQuery = query(
+    collection(db, "users", currentUser.uid, "applications"),
+    orderBy("createdAt", "desc")
+  );
+
+  unsubscribeTracker = onSnapshot(trackerQuery, snapshot => {
+    cloudItems = snapshot.docs.map(documentSnapshot => ({
+      id: documentSnapshot.id,
+      ...documentSnapshot.data()
+    }));
+    renderTracker();
+  }, error => {
+    console.error(error);
+    alert("Could not load cloud tracker. Check Firestore rules and setup.");
+  });
+}
+
+async function addApplication(event) {
+  event.preventDefault();
+
+  const item = {
+    date: new Date().toLocaleDateString(),
+    company: document.getElementById("company").value.trim(),
+    role: document.getElementById("role").value.trim(),
+    pay: document.getElementById("pay").value.trim(),
+    status: document.getElementById("status").value
+  };
+
+  if (firebaseEnabled && db) {
+    if (!currentUser) {
+      alert("Sign in first to save applications to Firebase.");
+      return;
+    }
+
+    await addDoc(collection(db, "users", currentUser.uid, "applications"), {
+      ...item,
+      createdAt: serverTimestamp()
+    });
+    event.target.reset();
+    return;
+  }
+
+  const items = loadTracker();
+  items.unshift(item);
+  saveTracker(items);
+  event.target.reset();
+  renderTracker();
+}
+
+async function deleteApplication(event) {
+  if (!event.target.matches(".delete-row")) return;
+
+  if (firebaseEnabled && db && currentUser) {
+    const id = event.target.dataset.id;
+    if (!id) return;
+    await deleteDoc(doc(db, "users", currentUser.uid, "applications", id));
+    return;
+  }
+
+  const items = loadTracker();
+  items.splice(Number(event.target.dataset.index), 1);
+  saveTracker(items);
+  renderTracker();
+}
+
+function initAuthListener() {
+  if (!firebaseEnabled || !auth) {
+    renderAccount();
+    renderTracker();
+    return;
+  }
+
+  onAuthStateChanged(auth, user => {
+    currentUser = user;
+    renderAccount();
+    watchCloudTracker();
   });
 }
 
@@ -495,7 +838,7 @@ function init() {
   document.getElementById("loadDemo").addEventListener("click", () => {
     document.getElementById("resumeText").value = demoResume;
     document.getElementById("jobText").value = demoJob;
-    document.getElementById("jobType").value = "manufacturing";
+    document.getElementById("jobType").value = "machine_operator";
     document.getElementById("analyzer").scrollIntoView({ behavior: "smooth" });
   });
 
@@ -516,30 +859,15 @@ function init() {
     });
   });
 
-  document.getElementById("trackerForm").addEventListener("submit", event => {
-    event.preventDefault();
-    const items = loadTracker();
-    items.unshift({
-      date: new Date().toLocaleDateString(),
-      company: document.getElementById("company").value.trim(),
-      role: document.getElementById("role").value.trim(),
-      pay: document.getElementById("pay").value.trim(),
-      status: document.getElementById("status").value
-    });
-    saveTracker(items);
-    event.target.reset();
-    renderTracker();
-  });
+  document.getElementById("accountForm").addEventListener("submit", signIn);
+  document.getElementById("createAccountBtn").addEventListener("click", createAccount);
+  document.getElementById("signOutBtn").addEventListener("click", signOut);
+  document.getElementById("exportTrackerBtn").addEventListener("click", exportTrackerCSV);
+  document.getElementById("clearTrackerBtn").addEventListener("click", clearTracker);
+  document.getElementById("trackerForm").addEventListener("submit", addApplication);
+  document.getElementById("trackerRows").addEventListener("click", deleteApplication);
 
-  document.getElementById("trackerRows").addEventListener("click", event => {
-    if (!event.target.matches(".delete-row")) return;
-    const items = loadTracker();
-    items.splice(Number(event.target.dataset.index), 1);
-    saveTracker(items);
-    renderTracker();
-  });
-
-  renderTracker();
+  initAuthListener();
 }
 
 document.addEventListener("DOMContentLoaded", init);

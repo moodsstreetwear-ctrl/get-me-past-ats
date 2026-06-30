@@ -13,7 +13,11 @@
         <span class="logo-mark">G</span>
         <span>GET ME PAST ATS</span>
       </div>
-      <a class="nav-link" href="#tracker">Application Tracker</a>
+      <div class="nav-actions">
+        <span class="nav-user" id="navUser">Guest mode</span>
+        <a class="nav-link" href="#account">Sign In</a>
+        <a class="nav-link" href="#tracker">Application Tracker</a>
+      </div>
     </nav>
 
     <section class="hero-grid">
@@ -43,7 +47,7 @@
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
         <h2>Paste your resume and the job description</h2>
-        <p>Everything runs in your browser. Nothing is uploaded anywhere.</p>
+        <p>Resume analysis runs in your browser. Saved applications can sync to Firebase after you connect your project.</p>
       </div>
 
       <div class="input-grid">
@@ -167,11 +171,35 @@
       </div>
     </section>
 
+    <section class="panel" id="account">
+      <div class="section-heading">
+        <p class="eyebrow">Account</p>
+        <h2>Sign in to save your application tracker</h2>
+        <p>Create an account with email and password. After Firebase is connected, applications save to Firestore so users can return later from another device.</p>
+      </div>
+
+      <div class="account-grid">
+        <form id="accountForm" class="account-form">
+          <input id="userName" placeholder="Name" />
+          <input id="userEmail" type="email" placeholder="Email" required />
+          <input id="userPassword" type="password" placeholder="Password" minlength="6" required />
+          <button class="button primary" type="submit">Sign In</button>
+          <button class="button secondary" id="createAccountBtn" type="button">Create Account</button>
+        </form>
+        <div class="account-status-card">
+          <p class="card-label">Current account</p>
+          <h3 id="accountStatus">Guest mode</h3>
+          <p id="accountNote" class="small-note">Connect Firebase, then create an account to save applications in the cloud.</p>
+          <button class="button ghost" id="signOutBtn" type="button" hidden>Sign Out</button>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="tracker">
       <div class="section-heading">
         <p class="eyebrow">Step 3</p>
         <h2>Application tracker</h2>
-        <p>Track where you applied, pay, status, and follow-up dates. Stored locally in this browser.</p>
+        <p id="trackerNote">Track where you applied, pay, status, and follow-up dates. Sign in to sync your list with Firebase.</p>
       </div>
 
       <form id="trackerForm" class="tracker-form">
@@ -188,6 +216,11 @@
         </select>
         <button class="button primary" type="submit">Add Job</button>
       </form>
+
+      <div class="tracker-actions">
+        <button class="button secondary" id="exportTrackerBtn" type="button">Export Tracker CSV</button>
+        <button class="button ghost" id="clearTrackerBtn" type="button">Clear Tracker</button>
+      </div>
 
       <div class="table-wrap">
         <table>
@@ -211,6 +244,6 @@
     <p>GET ME PAST ATS — prototype. It helps improve wording, but no app can guarantee an interview.</p>
   </footer>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
