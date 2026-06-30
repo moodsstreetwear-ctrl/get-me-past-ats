@@ -174,22 +174,49 @@
     <section class="panel" id="account">
       <div class="section-heading">
         <p class="eyebrow">Account</p>
-        <h2>Sign in to save your application tracker</h2>
-        <p>Create an account with email and password. After Firebase is connected, applications save to Firestore so users can return later from another device.</p>
+        <h2>Save your job tracker with one clean login</h2>
+        <p>Create a free account once. After that, users can sign back in and keep their applications saved in Firebase.</p>
       </div>
 
-      <div class="account-grid">
-        <form id="accountForm" class="account-form">
-          <input id="userName" placeholder="Name" />
-          <input id="userEmail" type="email" placeholder="Email" required />
-          <input id="userPassword" type="password" placeholder="Password" minlength="6" required />
-          <button class="button primary" type="submit">Sign In</button>
-          <button class="button secondary" id="createAccountBtn" type="button">Create Account</button>
-        </form>
+      <div class="account-grid clean-account-grid">
+        <div class="auth-card">
+          <div class="auth-tabs" role="tablist" aria-label="Account mode">
+            <button class="auth-tab active" id="createModeBtn" type="button">Create account</button>
+            <button class="auth-tab" id="signInModeBtn" type="button">Sign in</button>
+          </div>
+
+          <form id="accountForm" class="account-form clean-account-form">
+            <h3 id="authTitle">Create your account</h3>
+            <p class="small-note" id="authHelp">New here? Start with Create account. Use Sign in only after the account already exists.</p>
+
+            <label class="auth-field" id="nameField">
+              <span>Name</span>
+              <input id="userName" autocomplete="name" placeholder="Your name" />
+            </label>
+
+            <label class="auth-field">
+              <span>Email</span>
+              <input id="userEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </label>
+
+            <label class="auth-field">
+              <span>Password</span>
+              <div class="password-row">
+                <input id="userPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters" minlength="6" required />
+                <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show password">Show</button>
+              </div>
+            </label>
+
+            <button class="button primary full-button" id="accountSubmitBtn" type="submit">Create Account</button>
+            <button class="link-button" id="passwordResetBtn" type="button" hidden>Forgot password?</button>
+            <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+
         <div class="account-status-card">
           <p class="card-label">Current account</p>
           <h3 id="accountStatus">Guest mode</h3>
-          <p id="accountNote" class="small-note">Connect Firebase, then create an account to save applications in the cloud.</p>
+          <p id="accountNote" class="small-note">Create an account to save applications in the cloud.</p>
           <button class="button ghost" id="signOutBtn" type="button" hidden>Sign Out</button>
         </div>
       </div>

@@ -6,7 +6,8 @@ import {
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   getFirestore,
@@ -486,6 +487,7 @@ let db = null;
 let currentUser = null;
 let cloudItems = [];
 let unsubscribeTracker = null;
+let authMode = "create";
 
 function hasFirebaseConfig(config) {
   return Boolean(
@@ -558,6 +560,72 @@ function saveTracker(items) {
   localStorage.setItem(getTrackerKey(), JSON.stringify(items));
 }
 
+function setAuthMessage(message = "", type = "") {
+  const authMessage = document.getElementById("authMessage");
+  if (!authMessage) return;
+  authMessage.textContent = message;
+  authMessage.className = `auth-message ${type}`.trim();
+}
+
+function setAuthMode(mode) {
+  authMode = mode === "signin" ? "signin" : "create";
+
+  const createBtn = document.getElementById("createModeBtn");
+  const signInBtn = document.getElementById("signInModeBtn");
+  const title = document.getElementById("authTitle");
+  const help = document.getElementById("authHelp");
+  const nameField = document.getElementById("nameField");
+  const nameInput = document.getElementById("userName");
+  const passwordInput = document.getElementById("userPassword");
+  const submitBtn = document.getElementById("accountSubmitBtn");
+  const resetBtn = document.getElementById("passwordResetBtn");
+
+  createBtn?.classList.toggle("active", authMode === "create");
+  signInBtn?.classList.toggle("active", authMode === "signin");
+
+  if (authMode === "create") {
+    title.textContent = "Create your account";
+    help.textContent = "New here? Start with Create account. Use Sign in only after the account already exists.";
+    submitBtn.textContent = "Create Account";
+    nameField.hidden = false;
+    nameInput.required = true;
+    passwordInput.autocomplete = "new-password";
+    resetBtn.hidden = true;
+  } else {
+    title.textContent = "Welcome back";
+    help.textContent = "Already made an account? Sign in with the same email and password.";
+    submitBtn.textContent = "Sign In";
+    nameField.hidden = true;
+    nameInput.required = false;
+    passwordInput.autocomplete = "current-password";
+    resetBtn.hidden = false;
+  }
+
+  setAuthMessage("");
+}
+
+function formatAuthError(error) {
+  const code = error?.code || "";
+  if (code.includes("invalid-credential") || code.includes("wrong-password")) {
+    return "That email/password did not work. If this is your first time, tap Create account first.";
+  }
+  if (code.includes("user-not-found")) return "No account found with that email. Tap Create account first.";
+  if (code.includes("email-already-in-use")) return "That email already has an account. Switch to Sign in instead.";
+  if (code.includes("weak-password")) return "Password must be at least 6 characters.";
+  if (code.includes("invalid-email")) return "Enter a valid email address.";
+  if (code.includes("operation-not-allowed")) return "Email/password is not enabled in Firebase Authentication yet.";
+  return error?.message || "Something went wrong. Try again.";
+}
+
+async function handleAccountSubmit(event) {
+  event.preventDefault();
+  if (authMode === "create") {
+    await createAccount();
+  } else {
+    await signIn();
+  }
+}
+
 function renderAccount() {
   const user = getCurrentUser();
   const navUser = document.getElementById("navUser");
@@ -616,15 +684,15 @@ function renderTracker() {
   });
 }
 
-async function signIn(event) {
-  event.preventDefault();
+async function signIn() {
+  setAuthMessage("Signing in...", "");
 
   if (!firebaseEnabled || !auth || !db) {
-    const name = document.getElementById("userName").value.trim();
+    const name = document.getElementById("userName").value.trim() || "Local User";
     const email = document.getElementById("userEmail").value.trim().toLowerCase();
 
-    if (!name || !email) {
-      alert("Firebase is not connected yet. For local mode, enter your name and email.");
+    if (!email) {
+      setAuthMessage("Enter your email.", "error");
       return;
     }
 
@@ -634,7 +702,8 @@ async function signIn(event) {
       signedInAt: new Date().toISOString()
     }));
 
-    event.target.reset();
+    document.getElementById("accountForm").reset();
+    setAuthMessage("Signed in locally on this browser.", "success");
     renderAccount();
     renderTracker();
     return;
@@ -644,20 +713,23 @@ async function signIn(event) {
   const password = document.getElementById("userPassword").value;
 
   if (!email || !password) {
-    alert("Enter your email and password.");
+    setAuthMessage("Enter your email and password.", "error");
     return;
   }
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
+    setAuthMessage("Signed in successfully.", "success");
   } catch (error) {
-    alert(error.message || "Could not sign in.");
+    setAuthMessage(formatAuthError(error), "error");
   }
 }
 
 async function createAccount() {
+  setAuthMessage("Creating account...", "");
+
   if (!firebaseEnabled || !auth || !db) {
-    alert("Firebase is not connected yet. Add your Firebase config first, then create real accounts.");
+    setAuthMessage("Firebase is not connected yet. Upload firebase-config.js and enable Authentication first.", "error");
     return;
   }
 
@@ -666,12 +738,12 @@ async function createAccount() {
   const password = document.getElementById("userPassword").value;
 
   if (!name || !email || !password) {
-    alert("Enter name, email, and password to create an account.");
+    setAuthMessage("Enter your name, email, and password to create an account.", "error");
     return;
   }
 
   if (password.length < 6) {
-    alert("Password must be at least 6 characters.");
+    setAuthMessage("Password must be at least 6 characters.", "error");
     return;
   }
 
@@ -679,9 +751,30 @@ async function createAccount() {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
     currentUser = credential.user;
+    setAuthMessage("Account created. Your tracker will save to the cloud.", "success");
     renderAccount();
   } catch (error) {
-    alert(error.message || "Could not create account.");
+    setAuthMessage(formatAuthError(error), "error");
+  }
+}
+
+async function resetPassword() {
+  if (!firebaseEnabled || !auth) {
+    setAuthMessage("Firebase is not connected yet.", "error");
+    return;
+  }
+
+  const email = document.getElementById("userEmail").value.trim().toLowerCase();
+  if (!email) {
+    setAuthMessage("Enter your email first, then tap Forgot password.", "error");
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    setAuthMessage("Password reset email sent. Check your inbox and spam folder.", "success");
+  } catch (error) {
+    setAuthMessage(formatAuthError(error), "error");
   }
 }
 
@@ -859,8 +952,18 @@ function init() {
     });
   });
 
-  document.getElementById("accountForm").addEventListener("submit", signIn);
-  document.getElementById("createAccountBtn").addEventListener("click", createAccount);
+  document.getElementById("accountForm").addEventListener("submit", handleAccountSubmit);
+  document.getElementById("createModeBtn").addEventListener("click", () => setAuthMode("create"));
+  document.getElementById("signInModeBtn").addEventListener("click", () => setAuthMode("signin"));
+  document.getElementById("passwordResetBtn").addEventListener("click", resetPassword);
+  document.getElementById("togglePasswordBtn").addEventListener("click", () => {
+    const input = document.getElementById("userPassword");
+    const button = document.getElementById("togglePasswordBtn");
+    const showing = input.type === "text";
+    input.type = showing ? "password" : "text";
+    button.textContent = showing ? "Show" : "Hide";
+  });
+  setAuthMode("create");
   document.getElementById("signOutBtn").addEventListener("click", signOut);
   document.getElementById("exportTrackerBtn").addEventListener("click", exportTrackerCSV);
   document.getElementById("clearTrackerBtn").addEventListener("click", clearTracker);
