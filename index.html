@@ -50,18 +50,18 @@
 
         <button class="drawer-page-button" type="button" data-drawer-page="pricingDrawer">Free vs Pro</button>
         <div class="drawer-page-panel" id="pricingDrawer" hidden>
-          <h3>Free now. Pro features later.</h3>
+          <h3>Full report logic live. Payments are not turned on yet.</h3>
           <div class="drawer-plan-grid">
             <div>
-              <strong>Free</strong>
-              <p>Resume score, missing keywords, basic red flags, and application tracker.</p>
+              <strong>Current version</strong>
+              <p>Match score, honest diagnosis, job-type warning, missing proof, ATS wording, red flags, and application tracker.</p>
             </div>
             <div>
               <strong>Pro idea</strong>
-              <p>Unlimited scans, PDF upload, PDF export, interview questions, follow-up emails, and stronger rewrite tools.</p>
+              <p>Unlimited scans, PDF upload, PDF export, interview questions, follow-up emails, saved reports, and stronger rewrite tools.</p>
             </div>
           </div>
-          <p class="tiny-note">Payments are not turned on yet.</p>
+          <p class="tiny-note">Truth rule: rewrite wording, not reality.</p>
         </div>
 
         <a class="drawer-legal-link" href="privacy.html">Privacy Policy</a>
@@ -121,7 +121,7 @@
         <p class="eyebrow">Resume + Job Post Analyzer</p>
         <h1>Stop applying blind.</h1>
         <p class="hero-copy">
-          Compare your resume to any job post, find missing keywords, catch red flags, and track every application in one place.
+          Compare your resume to any job post, find missing keywords, catch red flags, and get ATS-friendly wording based on real experience only.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="#analyzer">Analyze My Resume</a>
@@ -129,8 +129,8 @@
         </div>
         <div class="hero-proof" aria-label="Product highlights">
           <span>Match score</span>
-          <span>Missing keywords</span>
-          <span>Red flags</span>
+          <span>Honest diagnosis</span>
+          <span>No fake experience</span>
           <span>Tracker</span>
         </div>
       </div>
@@ -138,13 +138,13 @@
       <aside class="product-card preview-card" aria-label="Product preview">
         <div class="preview-topline">
           <p class="card-label">Resume Report</p>
-          <span class="live-pill">Free</span>
+          <span class="live-pill">Live</span>
         </div>
-        <div class="circle-score"><span>72%</span></div>
+        <div class="circle-score"><span>82%</span></div>
         <div class="mini-report-list">
-          <div><strong>Missing:</strong> RF scanner, inventory, safety</div>
-          <div><strong>Red flag:</strong> dates need review</div>
-          <div><strong>Next step:</strong> add stronger proof</div>
+          <div><strong>Diagnosis:</strong> Good Match</div>
+          <div><strong>Proof:</strong> machine operation, safety, quality checks</div>
+          <div><strong>Rule:</strong> ATS wording only if true</div>
         </div>
       </aside>
     </section>
@@ -159,8 +159,8 @@
       </article>
       <article class="feature-card">
         <span class="feature-icon">02</span>
-        <h3>Red Flag Scanner</h3>
-        <p>Catch missing dates, weak sections, thin wording, and other issues recruiters may notice.</p>
+        <h3>Honest Rewrite Gate</h3>
+        <p>Good matches get copy-ready wording. Weak matches get direction instead of fake bullets.</p>
       </article>
       <article class="feature-card">
         <span class="feature-icon">03</span>
@@ -173,7 +173,7 @@
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
         <h2>Paste your resume and the job description</h2>
-        <p>Paste both pieces below. Then use the report to improve your resume before you apply.</p>
+        <p>Paste both pieces below. The report diagnoses the match before it writes anything.</p>
       </div>
 
       <div class="input-grid">
@@ -261,7 +261,7 @@
       <article class="panel">
         <p class="eyebrow">Resume Direction</p>
         <h3>Honest ATS guidance</h3>
-        <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, a wording gap, a transferable match, or the wrong job type.</div>
+        <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, wording gap, weak evidence, or the wrong job type.</div>
       </article>
 
       <article class="panel">
@@ -272,7 +272,7 @@
 
       <article class="panel">
         <p class="eyebrow">Keyword Confidence</p>
-        <h3>Exact, related, and weak matches already found</h3>
+        <h3>Exact job-skill proof already found</h3>
         <div class="chip-list good" id="matchedKeywords"></div>
       </article>
 
@@ -286,18 +286,18 @@
     <section class="panel" id="rewrite" hidden>
       <div class="section-heading">
         <p class="eyebrow">Step 2</p>
-        <h2>Starter resume wording</h2>
-        <p>Based only on what your resume already shows. Do not add anything you have not actually done.</p>
+        <h2>ATS wording or right direction</h2>
+        <p>Good matches get copy-ready wording. Weak matches get direction instead of fake experience.</p>
       </div>
 
       <div class="rewrite-grid">
         <article>
-          <h3>2-sentence starter summary</h3>
+          <h3 id="summaryHeading">ATS-friendly summary</h3>
           <div class="copy-box" id="summaryOutput"></div>
           <button class="copy-button" data-copy="summaryOutput">Copy summary</button>
         </article>
         <article>
-          <h3>3 honest starter bullets</h3>
+          <h3 id="bulletHeading">Resume bullets or right direction</h3>
           <div class="copy-box" id="bulletOutput"></div>
           <button class="copy-button" data-copy="bulletOutput">Copy bullets</button>
         </article>
@@ -308,7 +308,7 @@
       <div class="section-heading">
         <p class="eyebrow">Step 3</p>
         <h2>Application tracker</h2>
-        <p id="trackerNote">Track where you applied, pay, status, and follow-up dates. Sign in from the menu to save your list to your account.</p>
+        <p id="trackerNote">Track where you applied, pay, status, and follow-up dates. Sign in from the menu to keep your list separate.</p>
       </div>
 
       <form id="trackerForm" class="tracker-form">
@@ -348,30 +348,17 @@
         </table>
       </div>
     </section>
-
   </main>
 
   <footer>
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=honest-free-v2"></script>
+  <script type="module" src="app.js?v=paid-logic-v2-all-job-types"></script>
   <script>
-    // Emergency button fallback. It only turns on if app.js fails to initialize.
+    // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {
-      const fallbackDelay = 900;
-
       function $(id) { return document.getElementById(id); }
-      function text(value) { return String(value || ""); }
-      function clean(value) { return text(value).trim(); }
-      function norm(value) { return text(value).toLowerCase().replace(/[^a-z0-9+#./ -]/g, " ").replace(/\s+/g, " ").trim(); }
-      function tokens(value) {
-        const stop = new Set(["the","and","for","with","you","your","are","that","this","from","will","have","has","job","jobs","work","team","must","able","ability","position","company","their","they","all","can","may","other","into","about","each","when","where","what","who","why","how","been","than","then","also","any","not","but","more","less","per","hour","week","day","shift","required","preferred","responsibilities","requirements","duties","skills","experience","years","year","candidate","applicant","role","include","including","perform","maintain","using","use","needed","needs"]);
-        return norm(value).split(" ").filter(word => word.length > 3 && !stop.has(word));
-      }
-      function escapeHTML(value) {
-        return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-      }
       function openMenu() {
         const menu = $("navMenu"), backdrop = $("menuBackdrop"), toggle = $("menuToggle");
         if (!menu || !backdrop || !toggle) return;
@@ -390,126 +377,27 @@
         backdrop.hidden = true;
         document.body.classList.remove("menu-open");
       }
-      function fallbackAnalyze() {
-        const resume = clean($("resumeText") && $("resumeText").value);
-        const job = clean($("jobText") && $("jobText").value);
-        if (!resume || !job) { alert("Paste both your resume and the job description first."); return; }
-        const resumeNorm = norm(resume);
-        const jobTokens = tokens(job);
-        const counts = new Map();
-        jobTokens.forEach(word => counts.set(word, (counts.get(word) || 0) + 1));
-        const keywords = [...counts.entries()].sort((a,b) => b[1] - a[1]).slice(0, 24).map(([word]) => word);
-        const matched = keywords.filter(word => resumeNorm.includes(word));
-        const missing = keywords.filter(word => !resumeNorm.includes(word));
-        const score = keywords.length ? Math.min(100, Math.max(10, Math.round((matched.length / keywords.length) * 100))) : 50;
-        if ($("results")) $("results").hidden = false;
-        if ($("rewrite")) $("rewrite").hidden = false;
-        if ($("scoreValue")) $("scoreValue").textContent = score;
-        const diagnosis = score >= 70 ? "Good Match" : score >= 45 ? "Transferable Match" : "Weak Match";
-        const diagnosisText = score >= 70
-          ? "Your resume has solid overlap with this job post. Starter wording below should still use only proven experience."
-          : score >= 45
-            ? "Your resume shows some transferable overlap, but not enough direct proof to force the match. Use safe wording only."
-            : "Your resume does not match this job post closely enough yet. Do not create fake experience to fit the job.";
-        if ($("scoreMessage")) $("scoreMessage").textContent = diagnosis + ". " + diagnosisText;
-        if ($("scoreBar")) $("scoreBar").style.width = score + "%";
-        if ($("diagnosisOutput")) $("diagnosisOutput").innerHTML = `<h4 style="margin:0 0 8px;color:#f4f7fb">${diagnosis}</h4><p style="margin:0 0 10px;color:#d6dbe6;line-height:1.55">${escapeHTML(diagnosisText)}</p><p style="margin:0;color:#a7ffce;line-height:1.45">Missing keywords are suggestions only. Add them only if they are true.</p>`;
-        if ($("missingKeywords")) $("missingKeywords").innerHTML = missing.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No major missing keywords found</span>';
-        if ($("matchedKeywords")) $("matchedKeywords").innerHTML = matched.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No matches found yet</span>';
-        if ($("redFlags")) $("redFlags").innerHTML = [
-          missing.length > 10 ? "<strong>Keyword gap:</strong> add honest job-post wording only where the resume proves it." : "No major keyword red flag from the backup checker.",
-          !/20\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(resume) ? "<strong>Missing dates:</strong> add month/year dates if your resume does not show them." : "Dates appear to be present.",
-          "<strong>Truth rule:</strong> fix ATS wording, not reality."
-        ].map(item => `<li>${item}</li>`).join("");
-        const topMatched = matched.slice(0, 4).join(", ") || "reliability, communication, safety, and task completion";
-        if ($("summaryOutput")) $("summaryOutput").textContent = score < 45
-          ? "Your resume does not show enough proof for this job yet, so this backup checker will not create job-specific wording. Add real experience, training, or certification first if it applies."
-          : "Reliable candidate with proven experience including " + topMatched + ". Able to follow instructions, support daily goals, and present real experience in ATS-friendly wording without adding false claims.";
-        if ($("bulletOutput")) $("bulletOutput").textContent = score < 45
-          ? "• Do not force this resume into a job it does not prove.\n• Add real job-specific proof first if you have it.\n• Apply to roles closer to the experience already shown, or get the needed training first."
-          : "• Used proven resume skills such as " + topMatched + " to complete assigned work.\n• Followed instructions, workplace procedures, and daily expectations while supporting team goals.\n• Kept the resume honest by adding ATS wording only where real experience already exists.";
-        $("results") && $("results").scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-      function clearAnalyzer() {
-        if ($("resumeText")) $("resumeText").value = "";
-        if ($("jobText")) $("jobText").value = "";
-        if ($("results")) $("results").hidden = true;
-        if ($("rewrite")) $("rewrite").hidden = true;
-        if ($("scoreValue")) $("scoreValue").textContent = "0";
-        if ($("scoreMessage")) $("scoreMessage").textContent = "";
-        if ($("scoreBar")) $("scoreBar").style.width = "0%";
-        ["diagnosisOutput","missingKeywords","matchedKeywords","redFlags","summaryOutput","bulletOutput"].forEach(id => { if ($(id)) $(id).textContent = ""; });
-      }
-      function trackerKey() {
-        const user = JSON.parse(localStorage.getItem("gmpt_current_user") || "null");
-        return user && user.email ? "gmpt_tracker_" + norm(user.email).replace(/\s+/g, "_") : "gmpt_tracker_guest";
-      }
-      function loadTracker() { try { return JSON.parse(localStorage.getItem(trackerKey()) || "[]"); } catch (e) { return []; } }
-      function saveTracker(items) { localStorage.setItem(trackerKey(), JSON.stringify(items)); }
-      function renderTracker() {
-        const rows = $("trackerRows"); if (!rows) return;
-        const items = loadTracker();
-        rows.innerHTML = items.length ? items.map((item, index) => `<tr><td>${escapeHTML(item.date)}</td><td>${escapeHTML(item.company)}</td><td>${escapeHTML(item.role)}</td><td>${escapeHTML(item.pay || "—")}</td><td>${escapeHTML(item.status)}</td><td><button class="delete-row" data-index="${index}">Delete</button></td></tr>`).join("") : '<tr><td colspan="6">No applications tracked yet.</td></tr>';
-      }
-      function setAuthMessage(message, type) {
-        const el = $("authMessage"); if (!el) return;
-        el.textContent = message || "";
-        el.className = ("auth-message " + (type || "")).trim();
-      }
-      function renderAccount() {
-        let user = null;
-        try { user = JSON.parse(localStorage.getItem("gmpt_current_user") || "null"); } catch (e) {}
-        if ($("navUser")) $("navUser").textContent = user ? `Signed in as ${user.name}` : "Create or sign in";
-        if ($("trackerNote")) $("trackerNote").textContent = user ? `Tracking applications for ${user.name}.` : "You can use the tracker now. Sign in to keep your list separate.";
-        if ($("authCard")) $("authCard").hidden = Boolean(user);
-        if ($("accountStatusCard")) $("accountStatusCard").hidden = !user;
-        if ($("accountStatus")) $("accountStatus").textContent = user ? `Signed in as ${user.name}` : "You're signed in";
-        if ($("accountNote")) $("accountNote").textContent = user ? `${user.email} — saved on this device.` : "Your job applications are saved to your account.";
-      }
-      function setAuthMode(mode) {
-        const create = mode !== "signin";
-        if ($("authEyebrow")) $("authEyebrow").textContent = create ? "Create account" : "Sign in";
-        if ($("authTitle")) $("authTitle").textContent = create ? "Create your free account" : "Welcome back";
-        if ($("authHelp")) $("authHelp").textContent = create ? "Save your job applications and come back later." : "Access your saved job applications.";
-        if ($("accountSubmitBtn")) $("accountSubmitBtn").textContent = create ? "Create Account" : "Sign In";
-        if ($("nameField")) $("nameField").hidden = !create;
-        if ($("userName")) $("userName").required = create;
-        if ($("passwordResetBtn")) $("passwordResetBtn").hidden = create;
-        if ($("authSwitchText")) $("authSwitchText").innerHTML = create ? 'Already have an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>' : 'Need an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Create one</button>';
-        const switchBtn = $("switchAuthBtn"); if (switchBtn) switchBtn.onclick = () => setAuthMode(create ? "signin" : "create");
-        setAuthMessage("", "");
-      }
       function installFallback() {
         if (window.GMPT_APP_READY) return;
-        window.GMPT_FALLBACK_READY = true;
-        const analyzeBtn = $("analyzeBtn"); if (analyzeBtn) analyzeBtn.onclick = function(e){ e.preventDefault(); fallbackAnalyze(); };
-        const clearBtn = $("clearBtn"); if (clearBtn) clearBtn.onclick = function(e){ e.preventDefault(); clearAnalyzer(); };
-        const menuToggle = $("menuToggle"); if (menuToggle) menuToggle.onclick = function(){ $("navMenu") && $("navMenu").classList.contains("open") ? closeMenu() : openMenu(); };
-        const menuClose = $("menuClose"); if (menuClose) menuClose.onclick = closeMenu;
-        const backdrop = $("menuBackdrop"); if (backdrop) backdrop.onclick = closeMenu;
-        document.querySelectorAll("#navMenu .menu-item").forEach(link => link.addEventListener("click", closeMenu));
-        document.querySelectorAll("[data-open-account]").forEach(button => button.addEventListener("click", function(e){ e.preventDefault(); setAuthMode("create"); openMenu(); }));
-        document.querySelectorAll("[data-drawer-page]").forEach(button => button.addEventListener("click", function(){
-          const target = $(button.getAttribute("data-drawer-page"));
-          const open = target && !target.hidden;
-          document.querySelectorAll(".drawer-page-panel").forEach(panel => panel.hidden = true);
-          document.querySelectorAll(".drawer-page-button").forEach(item => item.classList.remove("active"));
-          if (target && !open) { target.hidden = false; button.classList.add("active"); }
-        }));
-        const togglePassword = $("togglePasswordBtn"); if (togglePassword) togglePassword.onclick = function(){ const input = $("userPassword"); if (!input) return; const showing = input.type === "text"; input.type = showing ? "password" : "text"; togglePassword.textContent = showing ? "Show" : "Hide"; };
-        setAuthMode("create");
-        const form = $("accountForm"); if (form) form.onsubmit = function(e){ e.preventDefault(); const email = clean($("userEmail") && $("userEmail").value).toLowerCase(); const name = clean($("userName") && $("userName").value) || email.split("@")[0] || "User"; if (!email) { setAuthMessage("Enter your email.", "error"); return; } localStorage.setItem("gmpt_current_user", JSON.stringify({name, email, signedInAt: new Date().toISOString()})); form.reset(); renderAccount(); renderTracker(); closeMenu(); };
-        const reset = $("passwordResetBtn"); if (reset) reset.onclick = () => setAuthMessage("Password reset needs Firebase. Try signing in or creating a new account.", "error");
-        const signOut = $("signOutBtn"); if (signOut) signOut.onclick = function(){ localStorage.removeItem("gmpt_current_user"); renderAccount(); renderTracker(); closeMenu(); };
-        const trackerForm = $("trackerForm"); if (trackerForm) trackerForm.onsubmit = function(e){ e.preventDefault(); const company = clean($("company") && $("company").value); const role = clean($("role") && $("role").value); if (!company || !role) return; const items = loadTracker(); items.unshift({date: new Date().toLocaleDateString(), company, role, pay: clean($("pay") && $("pay").value), status: $("status") ? $("status").value : "Saved"}); saveTracker(items); trackerForm.reset(); renderTracker(); };
-        const trackerRows = $("trackerRows"); if (trackerRows) trackerRows.onclick = function(e){ if (!e.target.matches(".delete-row")) return; const items = loadTracker(); items.splice(Number(e.target.dataset.index), 1); saveTracker(items); renderTracker(); };
-        const exportBtn = $("exportTrackerBtn"); if (exportBtn) exportBtn.onclick = function(){ const items = loadTracker(); if (!items.length) { alert("No applications to export yet."); return; } const rows = [["Date","Company","Role","Pay","Status"], ...items.map(i => [i.date,i.company,i.role,i.pay || "",i.status])]; const csv = rows.map(row => row.map(v => `"${text(v).replace(/"/g,'""')}"`).join(",")).join("\n"); const blob = new Blob([csv], {type:"text/csv;charset=utf-8"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "job-tracker.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); };
-        const clearTracker = $("clearTrackerBtn"); if (clearTracker) clearTracker.onclick = function(){ if (!loadTracker().length) return; if (!confirm("Clear tracker? This cannot be undone.")) return; saveTracker([]); renderTracker(); };
-        document.querySelectorAll(".copy-button").forEach(button => button.onclick = function(){ const target = $(button.dataset.copy); const value = target ? target.textContent : ""; if (navigator.clipboard && value) navigator.clipboard.writeText(value).catch(function(){}); const old = button.textContent; button.textContent = "Copied"; setTimeout(() => button.textContent = old, 1200); });
-        renderAccount();
-        renderTracker();
+        const analyzeBtn = $("analyzeBtn");
+        if (analyzeBtn) analyzeBtn.onclick = function () {
+          alert("The full ATS scanner did not load. Refresh the page and try again. No generic resume wording was generated.");
+        };
+        const clearBtn = $("clearBtn");
+        if (clearBtn) clearBtn.onclick = function () {
+          if ($("resumeText")) $("resumeText").value = "";
+          if ($("jobText")) $("jobText").value = "";
+          if ($("results")) $("results").hidden = true;
+          if ($("rewrite")) $("rewrite").hidden = true;
+        };
+        const menuToggle = $("menuToggle");
+        if (menuToggle) menuToggle.onclick = function () { $("navMenu") && $("navMenu").classList.contains("open") ? closeMenu() : openMenu(); };
+        const menuClose = $("menuClose");
+        if (menuClose) menuClose.onclick = closeMenu;
+        const backdrop = $("menuBackdrop");
+        if (backdrop) backdrop.onclick = closeMenu;
       }
-      document.addEventListener("DOMContentLoaded", function () { setTimeout(installFallback, fallbackDelay); });
+      document.addEventListener("DOMContentLoaded", function () { setTimeout(installFallback, 900); });
     })();
   </script>
 </body>

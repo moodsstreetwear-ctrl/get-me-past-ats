@@ -1,1362 +1,973 @@
 // GET ME PAST ATS
-// Analyzer code loads first so the score and clear buttons work even if account saving has a problem.
-window.GMPT_APP_VERSION = "all-buttons-v3";
+// Full report logic: diagnose first, then write only from proven resume evidence.
+window.GMPT_APP_VERSION = "paid-logic-v2-all-job-types";
 
-
-let initializeApp = null;
-let getAuth = null;
-let createUserWithEmailAndPassword = null;
-let signInWithEmailAndPassword = null;
-let firebaseSignOut = null;
-let onAuthStateChanged = null;
-let updateProfile = null;
-let sendPasswordResetEmail = null;
-
-let getFirestore = null;
-let collection = null;
-let addDoc = null;
-let deleteDoc = null;
-let doc = null;
-let onSnapshot = null;
-let query = null;
-let orderBy = null;
-let serverTimestamp = null;
-let getDocs = null;
-let writeBatch = null;
-
-const stopWords = new Set([
+const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
   "job", "jobs", "work", "worker", "team", "must", "able", "ability", "position", "company", "their", "they",
   "all", "can", "may", "within", "other", "such", "into", "about", "each", "when", "where", "what", "who", "why",
   "how", "been", "than", "then", "also", "any", "not", "but", "more", "less", "per", "hour", "week", "day",
   "shift", "required", "preferred", "responsibilities", "requirements", "duties", "skills", "experience", "years", "year",
   "candidate", "applicant", "role", "include", "including", "perform", "maintain", "using", "use", "needed", "needs",
-  "good", "great", "strong", "high", "low", "new", "current", "full", "part", "time", "plus", "etc", "etc."
+  "hiring", "environment", "supervisors", "report", "reports", "issues", "previous", "setting"
 ]);
 
-const presetKeywords = {
-  general: ["reliable", "communication", "teamwork", "safety", "quality", "training", "customer service", "problem solving", "attendance", "time management"],
-  customer_service_representative: ["customer service", "communication", "problem solving", "phone etiquette", "customer support", "CRM", "documentation", "de-escalation", "active listening", "customer satisfaction"],
-  data_entry_clerk: ["data entry", "typing", "accuracy", "attention to detail", "clerical", "records", "spreadsheets", "Microsoft Office", "documentation", "computer skills"],
-  administrative_assistant: ["administrative assistant", "office support", "scheduling", "email", "phone calls", "filing", "data entry", "calendar", "records", "organization"],
-  receptionist: ["receptionist", "front desk", "phone calls", "scheduling", "customer service", "greeting visitors", "appointments", "office support", "communication", "professionalism"],
-  call_center_representative: ["call center", "phone support", "high call volume", "customer service", "typing", "CRM", "documentation", "problem solving", "communication", "de-escalation"],
-  remote_customer_support_representative: ["remote", "customer support", "chat support", "email support", "phone support", "CRM", "typing", "documentation", "problem solving", "work from home"],
-  office_assistant: ["office assistant", "office support", "filing", "data entry", "phone calls", "email", "records", "organization", "scheduling", "Microsoft Office"],
-  sales_representative: ["sales", "customer service", "prospecting", "leads", "communication", "product knowledge", "upselling", "CRM", "follow up", "sales goals"],
-  retail_associate: ["retail", "customer service", "cash handling", "POS", "inventory", "merchandising", "store operations", "teamwork", "product knowledge", "sales"],
-  cashier: ["cashier", "cash handling", "POS", "customer service", "transactions", "accuracy", "checkout", "sales floor", "teamwork", "communication"],
-  stocker: ["stocker", "stocking", "inventory", "merchandising", "lifting", "unloading", "shelves", "backroom", "organization", "teamwork"],
-  warehouse_associate: ["warehouse", "picking", "packing", "shipping", "receiving", "inventory", "loading", "unloading", "pallet jack", "RF scanner", "order picking", "material handling"],
-  package_handler: ["package handling", "loading", "unloading", "sorting", "scanning", "warehouse", "lifting", "fast-paced", "safety", "teamwork"],
-  material_handler: ["material handling", "forklift", "pallet jack", "inventory", "shipping", "receiving", "loading", "unloading", "warehouse", "safety"],
-  forklift_operator: ["forklift", "material handling", "pallets", "loading", "unloading", "warehouse", "inventory", "shipping", "receiving", "safety", "equipment inspection"],
-  delivery_driver: ["delivery", "driver", "route", "safe driving", "customer service", "loading", "unloading", "navigation", "proof of delivery", "time management"],
-  truck_driver: ["truck driver", "CDL", "DOT", "pre-trip", "post-trip", "safe driving", "logistics", "route planning", "hours of service", "equipment inspection"],
-  machine_operator: ["machine operation", "equipment monitoring", "manufacturing", "production", "quality checks", "safety", "troubleshooting", "setup", "restarts", "material handling"],
-  production_worker: ["production", "manufacturing", "assembly", "quality control", "fast-paced", "safety", "equipment", "teamwork", "production goals", "material handling"],
-  assembly_worker: ["assembly", "production", "hand tools", "quality checks", "parts", "manufacturing", "instructions", "fast-paced", "safety", "teamwork"],
-  maintenance_technician: ["maintenance", "troubleshooting", "repair", "preventive maintenance", "work orders", "hand tools", "power tools", "electrical", "plumbing", "equipment repair"],
-  apartment_maintenance_technician: ["apartment maintenance", "property maintenance", "work orders", "HVAC", "plumbing", "electrical", "painting", "turnovers", "repairs", "customer service"],
-  electrician: ["electrical", "wiring", "outlets", "switches", "conduit", "panels", "troubleshooting", "installation", "blueprints", "safety", "NEC"],
-  welder: ["welding", "fabrication", "blueprint reading", "grinding", "cutting", "fitting", "measuring", "shop safety", "quality inspection", "MIG", "TIG"],
-  diesel_mechanic: ["diesel", "mechanic", "diagnostics", "preventive maintenance", "troubleshooting", "repair", "brakes", "hydraulics", "inspection", "hand tools", "heavy equipment"],
-  construction_laborer: ["construction", "laborer", "job site safety", "hand tools", "power tools", "measuring", "materials", "cleanup", "installation", "teamwork"],
-  carpenter: ["carpentry", "framing", "doors", "trim", "millwork", "measuring", "cutting", "installation", "hand tools", "power tools", "blueprints"],
-  security_officer: ["security", "patrol", "access control", "incident reports", "surveillance", "observation", "emergency response", "de-escalation", "professionalism", "customer service"],
-  janitor: ["janitorial", "cleaning", "sanitation", "trash removal", "restrooms", "supplies", "floor care", "safety", "attention to detail", "custodial"],
-  housekeeper: ["housekeeping", "cleaning", "sanitation", "rooms", "laundry", "guest service", "attention to detail", "supplies", "safety", "time management"],
-  hotel_front_desk_agent: ["front desk", "hotel", "guest service", "reservations", "check-in", "check-out", "customer service", "problem solving", "phone calls", "professionalism"],
-  server: ["server", "restaurant", "customer service", "orders", "POS", "food safety", "teamwork", "communication", "fast-paced", "guest service"],
-  cook: ["cook", "food prep", "grill", "kitchen", "food safety", "sanitation", "recipes", "teamwork", "fast-paced", "inventory"],
-  certified_nursing_assistant: ["CNA", "certified nursing assistant", "patient care", "vital signs", "ADLs", "infection control", "documentation", "compassion", "safety", "HIPAA"],
-  medical_assistant: ["medical assistant", "patient care", "vital signs", "scheduling", "medical records", "HIPAA", "phlebotomy", "EKG", "documentation", "clinical support"],
-  patient_care_technician: ["patient care technician", "patient care", "vital signs", "ADLs", "EKG", "phlebotomy", "documentation", "safety", "infection control", "HIPAA"],
-  home_health_aide: ["home health aide", "caregiver", "patient care", "ADLs", "companionship", "safety", "documentation", "meal prep", "mobility assistance", "compassion"],
-  phlebotomist: ["phlebotomy", "blood draw", "specimen collection", "patient care", "labeling", "HIPAA", "infection control", "documentation", "venipuncture", "safety"],
-  pharmacy_technician: ["pharmacy technician", "prescriptions", "medication", "inventory", "customer service", "insurance", "HIPAA", "pharmacy software", "accuracy", "documentation"],
-  dental_assistant: ["dental assistant", "patient care", "sterilization", "x-rays", "chairside assistance", "dental records", "infection control", "scheduling", "instruments", "HIPAA"],
-  licensed_practical_nurse: ["LPN", "licensed practical nurse", "patient care", "medication administration", "vital signs", "documentation", "care plans", "HIPAA", "infection control", "teamwork"],
-  registered_nurse: ["RN", "registered nurse", "patient assessment", "medication administration", "care plans", "documentation", "patient education", "HIPAA", "critical thinking", "teamwork"],
-  medical_billing_specialist: ["medical billing", "claims", "insurance", "CPT", "ICD-10", "denials", "payment posting", "HIPAA", "documentation", "accounts receivable"],
-  medical_coding_specialist: ["medical coding", "CPT", "ICD-10", "HCPCS", "claims", "documentation", "compliance", "HIPAA", "billing", "accuracy"],
-  teacher_assistant: ["teacher assistant", "classroom support", "student supervision", "lesson support", "behavior support", "communication", "education", "organization", "child development", "teamwork"],
-  substitute_teacher: ["substitute teacher", "classroom management", "lesson plans", "student supervision", "communication", "education", "flexibility", "behavior management", "attendance", "professionalism"],
-  bookkeeper: ["bookkeeping", "accounts payable", "accounts receivable", "reconciliation", "invoices", "QuickBooks", "spreadsheets", "financial records", "data entry", "accuracy"],
-  human_resources_assistant: ["human resources", "HR assistant", "onboarding", "employee records", "recruiting", "scheduling", "confidentiality", "data entry", "benefits", "communication"],
-  it_help_desk_technician: ["IT help desk", "technical support", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset", "customer service", "documentation"],
-  cybersecurity_analyst: ["cybersecurity", "security analyst", "network security", "incident response", "SIEM", "risk assessment", "vulnerability", "monitoring", "documentation", "access control"]
+const JOB_TYPES = {
+  general: { label: "General / Any Job", family: "general" },
+  customer_service_representative: { label: "Customer Service Representative", family: "customer_service" },
+  data_entry_clerk: { label: "Data Entry Clerk", family: "office" },
+  administrative_assistant: { label: "Administrative Assistant", family: "office" },
+  receptionist: { label: "Receptionist", family: "office" },
+  call_center_representative: { label: "Call Center Representative", family: "customer_service" },
+  remote_customer_support_representative: { label: "Remote Customer Support Representative", family: "customer_service" },
+  office_assistant: { label: "Office Assistant", family: "office" },
+  sales_representative: { label: "Sales Representative", family: "customer_service" },
+  retail_associate: { label: "Retail Associate", family: "customer_service" },
+  cashier: { label: "Cashier", family: "customer_service" },
+  stocker: { label: "Stocker", family: "warehouse" },
+  warehouse_associate: { label: "Warehouse Associate", family: "warehouse" },
+  package_handler: { label: "Package Handler", family: "warehouse" },
+  material_handler: { label: "Material Handler", family: "warehouse" },
+  forklift_operator: { label: "Forklift Operator", family: "warehouse" },
+  delivery_driver: { label: "Delivery Driver", family: "driving" },
+  truck_driver: { label: "Truck Driver", family: "driving" },
+  machine_operator: { label: "Machine Operator", family: "manufacturing" },
+  production_worker: { label: "Production Worker", family: "manufacturing" },
+  assembly_worker: { label: "Assembly Worker", family: "manufacturing" },
+  maintenance_technician: { label: "Maintenance Technician", family: "maintenance" },
+  apartment_maintenance_technician: { label: "Apartment Maintenance Technician", family: "maintenance" },
+  electrician: { label: "Electrician", family: "electrical" },
+  welder: { label: "Welder", family: "welding" },
+  diesel_mechanic: { label: "Diesel Mechanic", family: "diesel" },
+  construction_laborer: { label: "Construction Laborer", family: "construction" },
+  carpenter: { label: "Carpenter", family: "construction" },
+  security_officer: { label: "Security Officer", family: "security" },
+  janitor: { label: "Janitor", family: "cleaning" },
+  housekeeper: { label: "Housekeeper", family: "cleaning" },
+  hotel_front_desk_agent: { label: "Hotel Front Desk Agent", family: "customer_service" },
+  server: { label: "Server", family: "food_service" },
+  cook: { label: "Cook", family: "food_service" },
+  certified_nursing_assistant: { label: "Certified Nursing Assistant", family: "healthcare" },
+  medical_assistant: { label: "Medical Assistant", family: "healthcare" },
+  patient_care_technician: { label: "Patient Care Technician", family: "healthcare" },
+  home_health_aide: { label: "Home Health Aide", family: "healthcare" },
+  phlebotomist: { label: "Phlebotomist", family: "healthcare" },
+  pharmacy_technician: { label: "Pharmacy Technician", family: "healthcare" },
+  dental_assistant: { label: "Dental Assistant", family: "healthcare" },
+  licensed_practical_nurse: { label: "Licensed Practical Nurse", family: "healthcare" },
+  registered_nurse: { label: "Registered Nurse", family: "healthcare" },
+  medical_billing_specialist: { label: "Medical Billing Specialist", family: "healthcare_admin" },
+  medical_coding_specialist: { label: "Medical Coding Specialist", family: "healthcare_admin" },
+  teacher_assistant: { label: "Teacher Assistant", family: "education" },
+  substitute_teacher: { label: "Substitute Teacher", family: "education" },
+  bookkeeper: { label: "Bookkeeper", family: "office" },
+  human_resources_assistant: { label: "Human Resources Assistant", family: "office" },
+  it_help_desk_technician: { label: "IT Help Desk Technician", family: "it" },
+  cybersecurity_analyst: { label: "Cybersecurity Analyst", family: "it" }
 };
 
-const relatedKeywordMap = {
-  "material handling": ["moved materials", "move materials", "handled materials", "materials", "loading", "unloading", "pallets", "forklift", "pallet jack"],
-  "machine operation": ["machine operator", "operated machines", "operated equipment", "equipment operation", "production equipment", "equipment monitoring"],
-  "equipment monitoring": ["monitored equipment", "monitored machines", "machine operation", "checked equipment", "equipment checks"],
-  "quality checks": ["quality control", "quality inspection", "inspected", "inspection", "checked quality", "defects"],
-  "quality control": ["quality checks", "quality inspection", "inspected", "inspection", "checked quality"],
-  "fast-paced": ["fast paced", "high volume", "production flow", "rush", "busy environment"],
-  "troubleshooting": ["diagnostics", "diagnosed", "problem solving", "resolved issues", "repair", "restarts", "fixed", "identify issues"],
-  "setup": ["set up", "changeover", "changeovers", "machine setup", "prepared equipment"],
-  "restarts": ["restart", "reset", "resets", "machine reset", "started equipment"],
-  "preventive maintenance": ["PM", "PMs", "maintenance", "inspections", "equipment checks", "routine maintenance"],
-  "work orders": ["tickets", "maintenance requests", "repair requests", "service requests"],
-  "hand tools": ["tools", "power tools", "tool use", "wrenches", "drills"],
-  "power tools": ["tools", "hand tools", "drills", "saws", "impact"],
-  "electrical": ["wiring", "outlets", "switches", "panels", "fixtures", "ceiling fans", "electrical troubleshooting"],
-  "plumbing": ["pipes", "leaks", "faucets", "toilets", "drains"],
-  "HVAC": ["heating", "air conditioning", "air conditioner", "filters", "thermostat", "duct"],
-  "apartment maintenance": ["property maintenance", "work orders", "turnovers", "repairs", "painting", "plumbing", "electrical"],
-  "property maintenance": ["apartment maintenance", "turnovers", "work orders", "repairs", "grounds"],
-  "customer service": ["customer support", "guest service", "helped customers", "answered questions", "client support", "de-escalation"],
-  "customer support": ["customer service", "phone support", "chat support", "email support", "helped customers"],
-  "communication": ["communicated", "documentation", "reported", "explained", "phone calls", "email"],
-  "documentation": ["documented", "records", "reports", "logs", "notes", "paperwork"],
-  "data entry": ["entered data", "typing", "records", "spreadsheets", "clerical", "documentation"],
-  "attention to detail": ["accuracy", "detail", "checked", "verified", "inspection", "quality"],
-  "Microsoft Office": ["Word", "Excel", "PowerPoint", "Outlook", "spreadsheets", "office software"],
-  "CRM": ["customer database", "ticketing system", "support software", "salesforce", "zendesk"],
-  "phone etiquette": ["phone calls", "call center", "phone support", "answered phones"],
-  "de-escalation": ["calm", "conflict", "resolved issues", "customer complaints", "professional communication"],
-  "cash handling": ["cashier", "transactions", "register", "POS", "payments"],
-  "POS": ["register", "cashier", "transactions", "checkout", "point of sale"],
-  "inventory": ["stock", "stocking", "counted", "cycle counts", "materials", "supplies"],
-  "merchandising": ["stocking", "shelves", "displays", "sales floor"],
-  "shipping": ["shipped", "outbound", "shipments", "shipping and receiving", "packing"],
-  "receiving": ["received", "inbound", "shipments", "shipping and receiving", "unloading"],
-  "order picking": ["picking", "picked orders", "pulling orders", "picking orders"],
-  "RF scanner": ["scanner", "scanning", "scanned", "handheld scanner", "barcode"],
-  "pallet jack": ["pallets", "material handling", "warehouse equipment"],
-  "forklift": ["fork lift", "forklift operator", "material handling", "pallets"],
-  "loading": ["loaded", "load", "unloading", "materials", "trucks"],
-  "unloading": ["unloaded", "unload", "loading", "materials", "trucks"],
-  "safe driving": ["clean driving", "driving safety", "DOT", "pre-trip", "defensive driving"],
-  "route": ["routes", "navigation", "GPS", "deliveries", "route planning"],
-  "proof of delivery": ["POD", "delivery confirmation", "signature", "delivered"],
-  "CDL": ["CDL-A", "commercial driver", "truck driver"],
-  "DOT": ["department of transportation", "pre-trip", "post-trip", "hours of service"],
-  "pre-trip": ["pre trip", "equipment inspection", "vehicle inspection"],
-  "post-trip": ["post trip", "vehicle inspection", "equipment inspection"],
-  "hours of service": ["HOS", "logs", "logbook", "ELD"],
-  "welding": ["welder", "fabrication", "MIG", "TIG", "grinding", "cutting"],
-  "fabrication": ["welding", "cutting", "grinding", "fitting", "measuring"],
-  "blueprint reading": ["blueprints", "drawings", "schematics", "measurements"],
-  "diesel": ["diesel mechanic", "heavy equipment", "trucks", "engines"],
-  "diagnostics": ["troubleshooting", "diagnosed", "inspection", "testing"],
-  "security": ["patrol", "access control", "surveillance", "incident reports", "observation"],
-  "access control": ["checked IDs", "entry control", "secured entrances", "visitor logs"],
-  "incident reports": ["reports", "documented incidents", "logs", "security reports"],
-  "cleaning": ["cleaned", "sanitation", "custodial", "housekeeping", "janitorial"],
-  "sanitation": ["cleaning", "sanitized", "restrooms", "food safety"],
-  "guest service": ["customer service", "front desk", "hospitality", "helped guests"],
-  "food safety": ["sanitation", "kitchen safety", "safe food handling", "cleaning"],
-  "patient care": ["caregiver", "ADLs", "vital signs", "compassion", "resident care"],
-  "vital signs": ["blood pressure", "pulse", "temperature", "patient care"],
-  "ADLs": ["activities of daily living", "bathing", "dressing", "mobility assistance", "patient care"],
-  "HIPAA": ["patient privacy", "confidentiality", "medical records"],
-  "infection control": ["sanitation", "PPE", "sterilization", "cleaning", "safety"],
-  "phlebotomy": ["blood draw", "venipuncture", "specimen collection"],
-  "medical records": ["records", "documentation", "HIPAA", "patient charts"],
-  "technical support": ["IT help desk", "troubleshooting", "tickets", "password reset", "hardware", "software"],
-  "IT help desk": ["technical support", "tickets", "troubleshooting", "hardware", "software"],
-  "tickets": ["ticketing system", "support requests", "work orders", "documentation"],
-  "cybersecurity": ["security analyst", "network security", "incident response", "vulnerability", "access control"],
-  "network security": ["cybersecurity", "monitoring", "incident response", "risk assessment"],
-  "incident response": ["security incidents", "monitoring", "cybersecurity", "reports"]
+const FAMILY_LABELS = {
+  general: "General",
+  manufacturing: "Machine Operator / Production",
+  warehouse: "Warehouse / Material Handling",
+  healthcare: "Healthcare Support",
+  healthcare_admin: "Medical Office",
+  maintenance: "Maintenance",
+  electrical: "Electrical",
+  welding: "Welding",
+  diesel: "Diesel Mechanic",
+  construction: "Construction",
+  customer_service: "Customer Service",
+  office: "Office / Administrative",
+  driving: "Driving / CDL",
+  security: "Security",
+  cleaning: "Cleaning",
+  food_service: "Food Service",
+  education: "Education Support",
+  it: "IT / Technical Support"
 };
 
+function term(term, aliases = [], priority = "medium") {
+  return { term, aliases: [term, ...aliases], priority };
+}
 
-
-Object.assign(relatedKeywordMap, {
-  "safety procedures": ["safety", "PPE", "followed procedures", "safe work", "safety rules", "workplace safety"],
-  "teamwork": ["team environment", "crew", "coworkers", "worked with team", "helped team"],
-  "attendance": ["reliable", "dependable", "punctual", "showed up", "stable work history"],
-  "strong attendance": ["attendance", "reliable", "dependable", "punctual", "stable work history"],
-  "time management": ["deadlines", "on time", "routes", "schedule", "prioritized"],
-  "organization": ["organized", "records", "filing", "inventory", "tracking"],
-  "scheduling": ["appointments", "calendar", "coordinated", "planned"],
-  "calendar": ["scheduling", "appointments", "coordinated"],
-  "records": ["documentation", "files", "data entry", "logs", "paperwork"],
-  "filing": ["records", "documents", "paperwork", "office support"],
-  "confidentiality": ["private", "privacy", "HIPAA", "sensitive information"],
-  "active listening": ["listened", "customer questions", "answered questions", "customer concerns"],
-  "customer satisfaction": ["happy customers", "resolved complaints", "customer service", "customer support"],
-  "phone support": ["phone calls", "answered phones", "call center", "customer calls"],
-  "chat support": ["messages", "online support", "customer support", "email support"],
-  "email support": ["email", "messages", "customer support", "documentation"],
-  "work from home": ["remote", "independent", "computer", "home office"],
-  "typing": ["data entry", "keyboard", "entered data", "computer skills"],
-  "accuracy": ["attention to detail", "verified", "checked", "quality", "error-free"],
-  "spreadsheets": ["Excel", "Microsoft Office", "data entry", "records"],
-  "sales goals": ["sales", "quota", "upselling", "revenue", "targets"],
-  "upselling": ["sales", "recommended products", "product knowledge"],
-  "product knowledge": ["sales", "customer questions", "recommended products"],
-  "cashier": ["register", "cash handling", "POS", "transactions"],
-  "transactions": ["cash handling", "payments", "register", "POS"],
-  "merchandising": ["stocking", "displays", "shelves", "sales floor"],
-  "stocking": ["stock", "inventory", "shelves", "merchandising"],
-  "warehouse": ["shipping", "receiving", "loading", "unloading", "inventory", "materials"],
-  "picking": ["order picking", "picked orders", "pulling orders", "selected items"],
-  "packing": ["packaged", "shipping", "orders", "boxes"],
-  "shipping and receiving": ["shipping", "receiving", "loaded", "unloaded", "shipments"],
-  "production": ["manufacturing", "production line", "machine operation", "assembly"],
-  "manufacturing": ["production", "machine operation", "assembly", "industrial"],
-  "assembly": ["assembled", "production", "parts", "hand tools"],
-  "production goals": ["production rate", "quota", "output", "daily goals"],
-  "equipment": ["machines", "tools", "equipment monitoring", "machine operation"],
-  "changeovers": ["setup", "changed over", "machine setup", "prepared equipment"],
-  "repair": ["repairs", "fixed", "troubleshooting", "maintenance"],
-  "repairs": ["repair", "fixed", "troubleshooting", "maintenance"],
-  "installation": ["installed", "setup", "mounted", "built"],
-  "turnovers": ["make-ready", "unit turns", "apartment turns", "prepared apartments"],
-  "painting": ["painted", "turnovers", "property maintenance", "repairs"],
-  "grounds": ["property maintenance", "cleanup", "outside areas", "groundskeeping"],
-  "wiring": ["electrical", "outlets", "switches", "fixtures", "panels"],
-  "outlets": ["electrical", "wiring", "receptacles", "switches"],
-  "switches": ["electrical", "wiring", "outlets", "fixtures"],
-  "conduit": ["electrical", "wiring", "installation"],
-  "panels": ["electrical", "breakers", "wiring"],
-  "NEC": ["electrical code", "code", "electrical safety"],
-  "MIG": ["welding", "welder", "fabrication"],
-  "TIG": ["welding", "welder", "fabrication"],
-  "grinding": ["welding", "fabrication", "cutting", "shop tools"],
-  "cutting": ["welding", "fabrication", "grinding"],
-  "fitting": ["fabrication", "welding", "measuring"],
-  "brakes": ["diesel", "mechanic", "repair", "inspection"],
-  "hydraulics": ["diesel", "mechanic", "heavy equipment", "repair"],
-  "inspection": ["inspected", "checked", "quality", "safety", "diagnostics"],
-  "heavy equipment": ["diesel", "mechanic", "equipment", "trucks"],
-  "patrol": ["walked assigned areas", "security", "monitored", "observation"],
-  "surveillance": ["cameras", "monitored", "security", "observation"],
-  "observation": ["monitored", "watched", "patrol", "security"],
-  "emergency response": ["emergency", "incident", "security", "safety"],
-  "professionalism": ["professional", "respectful", "customer service", "communication"],
-  "janitorial": ["cleaning", "custodial", "sanitation", "trash removal"],
-  "custodial": ["janitorial", "cleaning", "sanitation"],
-  "trash removal": ["trash", "cleaning", "janitorial", "custodial"],
-  "floor care": ["floors", "mopping", "sweeping", "cleaning"],
-  "restrooms": ["bathrooms", "cleaning", "sanitation", "supplies"],
-  "housekeeping": ["cleaning", "rooms", "laundry", "guest service"],
-  "rooms": ["housekeeping", "hotel", "cleaning", "guest service"],
-  "laundry": ["housekeeping", "cleaning", "rooms"],
-  "front desk": ["receptionist", "guest service", "check-in", "phone calls"],
-  "reservations": ["booking", "front desk", "hotel", "guest service"],
-  "check-in": ["check in", "front desk", "guest service", "hotel"],
-  "check-out": ["check out", "front desk", "guest service", "hotel"],
-  "server": ["restaurant", "orders", "guest service", "POS"],
-  "orders": ["server", "restaurant", "POS", "customer service"],
-  "food prep": ["prep", "kitchen", "cook", "recipes"],
-  "kitchen": ["cook", "food prep", "restaurant", "sanitation"],
-  "recipes": ["cook", "food prep", "kitchen"],
-  "CNA": ["certified nursing assistant", "patient care", "ADLs", "vital signs"],
-  "certified nursing assistant": ["CNA", "patient care", "ADLs", "vital signs"],
-  "compassion": ["patient care", "caregiver", "resident care", "helped patients"],
-  "caregiver": ["patient care", "home health aide", "ADLs", "companionship"],
-  "companionship": ["caregiver", "home health aide", "patient care"],
-  "meal prep": ["prepared meals", "home health aide", "caregiver"],
-  "mobility assistance": ["walking assistance", "transfers", "ADLs", "patient care"],
-  "EKG": ["electrocardiogram", "patient care", "medical assistant"],
-  "clinical support": ["medical assistant", "patient care", "vital signs", "documentation"],
-  "specimen collection": ["blood draw", "phlebotomy", "samples", "labeling"],
-  "venipuncture": ["blood draw", "phlebotomy", "specimen collection"],
-  "prescriptions": ["pharmacy technician", "medication", "pharmacy"],
-  "medication": ["prescriptions", "pharmacy technician", "medication administration"],
-  "pharmacy software": ["pharmacy technician", "computer", "prescriptions"],
-  "sterilization": ["infection control", "dental assistant", "sanitation"],
-  "x-rays": ["dental assistant", "radiographs", "patient care"],
-  "chairside assistance": ["dental assistant", "patient care", "instruments"],
-  "instruments": ["dental assistant", "sterilization", "chairside assistance"],
-  "medication administration": ["medication", "LPN", "RN", "patient care"],
-  "care plans": ["patient care", "nursing", "documentation"],
-  "patient assessment": ["nursing", "RN", "vital signs", "patient care"],
-  "claims": ["medical billing", "insurance", "CPT", "ICD-10"],
-  "denials": ["medical billing", "claims", "insurance"],
-  "CPT": ["medical coding", "medical billing", "claims"],
-  "ICD-10": ["medical coding", "medical billing", "claims"],
-  "HCPCS": ["medical coding", "claims", "billing"],
-  "classroom support": ["teacher assistant", "students", "lesson support"],
-  "student supervision": ["students", "classroom", "supervised children"],
-  "lesson support": ["lesson plans", "teacher assistant", "classroom support"],
-  "behavior support": ["behavior management", "students", "classroom management"],
-  "classroom management": ["students", "behavior management", "substitute teacher"],
-  "accounts payable": ["AP", "invoices", "bookkeeping"],
-  "accounts receivable": ["AR", "invoices", "bookkeeping"],
-  "reconciliation": ["balanced", "bookkeeping", "accounts"],
-  "QuickBooks": ["bookkeeping software", "accounting software", "bookkeeping"],
-  "human resources": ["HR", "recruiting", "onboarding", "employee records"],
-  "HR assistant": ["human resources", "onboarding", "employee records"],
-  "onboarding": ["new hires", "orientation", "HR", "employee records"],
-  "recruiting": ["hiring", "candidates", "interviews", "HR"],
-  "employee records": ["HR", "records", "confidentiality"],
-  "hardware": ["computer hardware", "devices", "technical support"],
-  "software": ["applications", "programs", "technical support"],
-  "Windows": ["Microsoft Windows", "PC", "computer", "technical support"],
-  "password reset": ["login help", "account access", "technical support"],
-  "security analyst": ["cybersecurity", "network security", "incident response", "monitoring"],
-  "SIEM": ["security monitoring", "logs", "security analyst"],
-  "risk assessment": ["risk", "security", "vulnerability", "cybersecurity"],
-  "vulnerability": ["vulnerabilities", "security risk", "cybersecurity", "scanning"],
-  "monitoring": ["monitored", "security monitoring", "surveillance", "logs"]
-});
-
-const familyKeywordRules = {
-  general: {
-    high: ["reliable", "communication", "teamwork", "safety", "training"],
-    medium: ["problem solving", "attendance", "time management", "documentation"],
-    soft: ["professionalism", "organization"]
-  },
-  warehouse: {
-    high: ["warehouse", "material handling", "forklift", "pallet jack", "RF scanner", "order picking", "shipping", "receiving", "inventory", "loading", "unloading", "safety"],
-    medium: ["picking", "packing", "scanning", "equipment inspection", "fast-paced", "accuracy", "teamwork"],
-    soft: ["attendance", "communication", "time management"]
-  },
-  manufacturing: {
-    high: ["machine operation", "equipment monitoring", "manufacturing", "production", "quality checks", "quality control", "safety", "troubleshooting", "setup", "restarts"],
-    medium: ["material handling", "production flow", "changeovers", "fast-paced", "equipment", "12-hour shifts", "rotating shifts"],
-    soft: ["teamwork", "attendance", "communication"]
-  },
-  customer_service: {
-    high: ["customer service", "customer support", "communication", "problem solving", "documentation", "de-escalation", "active listening"],
-    medium: ["phone etiquette", "customer satisfaction", "CRM", "phone support", "email support"],
-    soft: ["professionalism", "patience", "teamwork"]
-  },
-  call_center: {
-    high: ["call center", "phone support", "customer service", "typing", "documentation", "problem solving", "de-escalation"],
-    medium: ["high call volume", "CRM", "phone etiquette", "scheduling", "active listening"],
-    soft: ["communication", "patience", "professionalism"]
-  },
-  remote: {
-    high: ["remote", "customer support", "chat support", "email support", "phone support", "CRM", "typing", "documentation"],
-    medium: ["problem solving", "work from home", "computer skills", "time management"],
-    soft: ["communication", "organization", "professionalism"]
-  },
-  dataentry: {
-    high: ["data entry", "typing", "accuracy", "attention to detail", "records", "spreadsheets", "computer skills"],
-    medium: ["Microsoft Office", "documentation", "clerical", "filing", "organization"],
-    soft: ["confidentiality", "time management"]
-  },
-  admin: {
-    high: ["administrative assistant", "office support", "scheduling", "email", "phone calls", "filing", "data entry", "records"],
-    medium: ["calendar", "organization", "Microsoft Office", "confidentiality", "customer service"],
-    soft: ["communication", "professionalism", "attention to detail"]
-  },
-  sales_retail: {
-    high: ["customer service", "sales", "cash handling", "POS", "inventory", "merchandising", "product knowledge"],
-    medium: ["transactions", "store operations", "sales floor", "upselling", "sales goals"],
-    soft: ["communication", "teamwork", "professionalism"]
-  },
-  delivery: {
-    high: ["delivery", "driver", "route", "safe driving", "customer service", "loading", "unloading", "proof of delivery"],
-    medium: ["navigation", "time management", "route planning", "equipment inspection", "communication"],
-    soft: ["reliable", "professionalism"]
-  },
-  cdl: {
-    high: ["truck driver", "CDL", "DOT", "pre-trip", "post-trip", "safe driving", "hours of service", "equipment inspection"],
-    medium: ["logistics", "route planning", "ELD", "loading", "unloading", "delivery"],
-    soft: ["communication", "time management", "reliable"]
-  },
-  maintenance: {
-    high: ["maintenance", "troubleshooting", "repair", "preventive maintenance", "work orders", "hand tools", "power tools", "safety"],
-    medium: ["electrical", "plumbing", "equipment repair", "installation", "documentation"],
-    soft: ["customer service", "communication", "time management"]
-  },
-  apartment: {
-    high: ["apartment maintenance", "property maintenance", "work orders", "HVAC", "plumbing", "electrical", "turnovers", "repairs"],
-    medium: ["painting", "grounds", "preventive maintenance", "customer service", "hand tools", "power tools"],
-    soft: ["communication", "professionalism", "time management"]
-  },
-  electrician: {
-    high: ["electrical", "wiring", "outlets", "switches", "conduit", "panels", "troubleshooting", "installation", "safety"],
-    medium: ["blueprints", "NEC", "hand tools", "power tools", "fixtures"],
-    soft: ["attention to detail", "teamwork", "communication"]
-  },
-  welding: {
-    high: ["welding", "fabrication", "blueprint reading", "grinding", "cutting", "fitting", "measuring", "shop safety"],
-    medium: ["quality inspection", "MIG", "TIG", "hand tools", "materials"],
-    soft: ["attention to detail", "teamwork", "safety"]
-  },
-  diesel: {
-    high: ["diesel", "mechanic", "diagnostics", "preventive maintenance", "troubleshooting", "repair", "inspection", "hand tools"],
-    medium: ["brakes", "hydraulics", "heavy equipment", "equipment inspection", "documentation"],
-    soft: ["safety", "communication", "problem solving"]
-  },
-  construction: {
-    high: ["construction", "hand tools", "power tools", "measuring", "installation", "job site safety", "materials"],
-    medium: ["carpentry", "framing", "doors", "trim", "millwork", "cleanup", "blueprints"],
-    soft: ["teamwork", "attendance", "communication"]
-  },
-  security: {
-    high: ["security", "patrol", "access control", "incident reports", "surveillance", "observation", "emergency response"],
-    medium: ["de-escalation", "professionalism", "customer service", "documentation", "safety"],
-    soft: ["communication", "reliable", "attention to detail"]
-  },
-  janitorial: {
-    high: ["cleaning", "sanitation", "janitorial", "custodial", "trash removal", "restrooms", "supplies"],
-    medium: ["floor care", "housekeeping", "safety", "attention to detail"],
-    soft: ["reliable", "time management", "teamwork"]
-  },
-  hospitality: {
-    high: ["front desk", "hotel", "guest service", "reservations", "check-in", "check-out", "customer service"],
-    medium: ["problem solving", "phone calls", "professionalism", "attention to detail"],
-    soft: ["communication", "organization", "reliable"]
-  },
-  food_service: {
-    high: ["restaurant", "customer service", "orders", "POS", "food safety", "sanitation", "teamwork"],
-    medium: ["server", "cook", "food prep", "kitchen", "recipes", "inventory", "fast-paced"],
-    soft: ["communication", "time management", "reliable"]
-  },
-  healthcare_support: {
-    high: ["patient care", "vital signs", "ADLs", "infection control", "documentation", "HIPAA", "safety"],
-    medium: ["CNA", "medical assistant", "EKG", "phlebotomy", "blood draw", "specimen collection", "compassion"],
-    soft: ["teamwork", "communication", "attention to detail"]
-  },
-  it_helpdesk: {
-    high: ["IT help desk", "technical support", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset"],
-    medium: ["customer service", "documentation", "network security", "cybersecurity", "incident response", "monitoring"],
-    soft: ["communication", "problem solving", "attention to detail"]
-  },
-  apprenticeship: {
-    high: ["willingness to learn", "hands-on", "training", "safety", "attendance", "teamwork"],
-    medium: ["tools", "communication", "problem solving", "reliable"],
-    soft: ["long-term", "career", "professionalism"]
-  }
+const FAMILY_TERMS = {
+  manufacturing: [
+    term("machine operation", ["machine operator", "operated machines", "operating machines", "production machines", "production equipment"], "high"),
+    term("equipment monitoring", ["monitoring equipment", "monitored equipment", "monitored machines", "monitor machines"], "high"),
+    term("quality checks", ["quality inspections", "quality control", "checked parts", "defects", "parts for defects"], "high"),
+    term("safety procedures", ["safety rules", "safety standards", "follow safety", "following safety"], "high"),
+    term("machine setup", ["setup", "set up", "machine set up"], "medium"),
+    term("machine cleaning", ["cleaning", "cleaned machines", "cleaning machines"], "medium"),
+    term("machine restarts", ["restarts", "restart", "machine restart", "machine restarts"], "medium"),
+    term("basic troubleshooting", ["troubleshooting", "troubleshoot", "machine issues", "equipment issues"], "medium"),
+    term("material handling", ["handled materials", "handling materials", "materials", "pallets"], "medium"),
+    term("loading materials", ["load materials", "loaded materials", "loading materials", "equipment loading"], "medium"),
+    term("production goals", ["daily production goals", "production goals", "production rate", "production flow"], "medium"),
+    term("industrial equipment", ["industrial equipment", "manufacturing equipment"], "medium"),
+    term("12-hour shifts", ["12 hour shifts", "12-hour shift", "long shifts"], "soft"),
+    term("team-based production", ["team members", "team based", "team-based", "production team"], "soft")
+  ],
+  warehouse: [
+    term("warehouse operations", ["warehouse", "distribution center", "shipping area", "receiving area"], "high"),
+    term("loading and unloading", ["loaded", "unloaded", "loading", "unloading"], "high"),
+    term("material handling", ["handled materials", "material handler", "materials", "pallets"], "high"),
+    term("pallet jack", ["pallet jacks"], "medium"),
+    term("pallet wrapping", ["wrapped pallets", "wrap pallets", "pallet wrap"], "medium"),
+    term("inventory organization", ["inventory", "organized inventory", "stock"], "medium"),
+    term("shipping and receiving", ["shipping", "receiving"], "medium"),
+    term("RF scanner", ["scanner", "scanning", "scan gun"], "medium"),
+    term("order picking", ["picking", "packing", "orders"], "medium"),
+    term("warehouse safety", ["safety rules", "safety procedures"], "medium")
+  ],
+  healthcare: [
+    term("CNA certification", ["certified nursing assistant", "CNA", "nursing assistant"], "high"),
+    term("patient care", ["patients", "patient", "care for patients", "patient support"], "high"),
+    term("resident care", ["residents", "resident"], "high"),
+    term("ADLs", ["activities of daily living", "daily living", "bathing", "dressing", "feeding"], "high"),
+    term("vital signs", ["vitals", "blood pressure", "temperature", "pulse"], "high"),
+    term("infection control", ["infection prevention", "PPE", "sanitation procedures"], "high"),
+    term("HIPAA", ["patient privacy", "privacy rules"], "high"),
+    term("documenting care", ["documentation", "documented care", "charting", "medical records"], "medium"),
+    term("mobility assistance", ["mobility", "transfer patients", "ambulation", "wheelchair"], "medium"),
+    term("clinical experience", ["clinical", "clinic", "hospital"], "medium"),
+    term("caregiver experience", ["caregiver", "home health", "personal care aide"], "medium"),
+    term("phlebotomy", ["blood draw", "venipuncture"], "medium"),
+    term("EKG", ["electrocardiogram"], "medium")
+  ],
+  maintenance: [
+    term("preventive maintenance", ["preventative maintenance", "PMs", "maintenance checks"], "high"),
+    term("repair", ["repairs", "fixed", "fixing"], "high"),
+    term("troubleshooting", ["diagnose", "diagnostics", "problem solving"], "high"),
+    term("electrical repair", ["outlets", "switches", "wiring", "ceiling fans", "fixtures"], "medium"),
+    term("plumbing", ["pipes", "leaks", "toilets", "sinks"], "medium"),
+    term("HVAC", ["heating", "air conditioning", "air conditioner"], "medium"),
+    term("hand and power tools", ["hand tools", "power tools", "tools"], "medium"),
+    term("work orders", ["work order", "service requests"], "medium")
+  ],
+  electrical: [
+    term("electrical wiring", ["wiring", "wire", "wired homes"], "high"),
+    term("outlets and switches", ["outlets", "switches", "receptacles"], "high"),
+    term("fixtures", ["ceiling fans", "lights", "lighting", "fixtures"], "medium"),
+    term("troubleshooting", ["electrical troubleshooting", "diagnose", "repair"], "medium"),
+    term("conduit", ["pipe bending", "EMT"], "medium"),
+    term("panels", ["breaker panel", "electrical panel", "breakers"], "medium")
+  ],
+  welding: [
+    term("welding", ["welder", "weld"], "high"),
+    term("fabrication", ["fabricate", "metal fabrication"], "high"),
+    term("MIG", ["MIG welding"], "medium"),
+    term("TIG", ["TIG welding"], "medium"),
+    term("grinding", ["grinder"], "medium"),
+    term("cutting", ["torch", "plasma"], "medium"),
+    term("blueprints", ["blueprint", "drawings"], "medium")
+  ],
+  diesel: [
+    term("diesel engines", ["diesel", "diesel engine"], "high"),
+    term("diagnostics", ["diagnose", "troubleshooting", "diagnostic"], "high"),
+    term("preventive maintenance", ["PM", "service checks"], "medium"),
+    term("brakes", ["brake"], "medium"),
+    term("hydraulics", ["hydraulic"], "medium"),
+    term("heavy equipment", ["trucks", "trailers", "fleet"], "medium"),
+    term("inspection", ["inspect", "inspections"], "medium")
+  ],
+  construction: [
+    term("construction", ["residential construction", "jobsite", "building"], "high"),
+    term("carpentry", ["carpenter", "doors", "trim", "millwork"], "high"),
+    term("hand and power tools", ["hand tools", "power tools", "tools"], "medium"),
+    term("installation", ["installed", "installing"], "medium"),
+    term("measuring and cutting", ["measured", "cut", "cutting"], "medium"),
+    term("safety procedures", ["safety"], "medium")
+  ],
+  customer_service: [
+    term("customer service", ["customers", "customer support", "guest service"], "high"),
+    term("phone support", ["phone calls", "call center", "calls"], "medium"),
+    term("CRM", ["customer relationship management"], "medium"),
+    term("de-escalation", ["de escalate", "complaints", "conflict"], "medium"),
+    term("cash handling", ["cashier", "POS", "transactions"], "medium"),
+    term("sales", ["upselling", "sales goals"], "medium")
+  ],
+  office: [
+    term("data entry", ["typing", "entered data"], "high"),
+    term("records", ["recordkeeping", "filing", "documents"], "medium"),
+    term("scheduling", ["calendar", "appointments"], "medium"),
+    term("email", ["emails"], "medium"),
+    term("Microsoft Office", ["Excel", "Word", "spreadsheets"], "medium"),
+    term("phone calls", ["phones", "front desk"], "medium")
+  ],
+  driving: [
+    term("CDL", ["CDL-A", "commercial driver"], "high"),
+    term("DOT", ["Department of Transportation"], "high"),
+    term("safe driving", ["driving record", "road safety"], "high"),
+    term("pre-trip inspection", ["pre trip", "pretrip"], "medium"),
+    term("post-trip inspection", ["post trip", "posttrip"], "medium"),
+    term("route delivery", ["routes", "delivery"], "medium"),
+    term("TWIC", ["transportation worker identification"], "medium")
+  ],
+  security: [
+    term("security", ["security officer", "guard"], "high"),
+    term("patrols", ["patrol", "walking patrol"], "medium"),
+    term("incident reports", ["incident reporting", "reports"], "medium"),
+    term("access control", ["badge", "entrance", "visitor"], "medium"),
+    term("surveillance", ["cameras", "monitoring"], "medium")
+  ],
+  cleaning: [
+    term("cleaning", ["cleaned", "janitorial", "housekeeping"], "high"),
+    term("sanitation", ["sanitized", "disinfected"], "medium"),
+    term("trash removal", ["trash", "waste"], "medium"),
+    term("floor care", ["mopping", "sweeping", "vacuuming"], "medium"),
+    term("restocking supplies", ["restocked", "supplies"], "medium")
+  ],
+  food_service: [
+    term("food preparation", ["prep", "prepared food", "cooking"], "high"),
+    term("food safety", ["sanitation", "safe food handling"], "high"),
+    term("customer service", ["guests", "customers"], "medium"),
+    term("orders", ["taking orders", "tickets"], "medium"),
+    term("cash handling", ["POS", "transactions"], "medium")
+  ],
+  education: [
+    term("student support", ["students", "classroom"], "high"),
+    term("lesson support", ["lesson plans", "instruction"], "medium"),
+    term("behavior management", ["behavior", "classroom management"], "medium"),
+    term("supervision", ["monitoring students", "supervise"], "medium")
+  ],
+  it: [
+    term("technical support", ["tech support", "help desk", "helpdesk"], "high"),
+    term("troubleshooting", ["diagnose", "resolve issues"], "high"),
+    term("tickets", ["ticketing", "service desk"], "medium"),
+    term("hardware", ["laptops", "desktops", "printers"], "medium"),
+    term("software", ["applications", "Windows"], "medium"),
+    term("password resets", ["password reset", "accounts"], "medium"),
+    term("networking", ["network", "routers", "switches"], "medium"),
+    term("cybersecurity", ["security analyst", "SOC", "SIEM"], "medium")
+  ],
+  healthcare_admin: [
+    term("medical billing", ["billing", "claims", "insurance"], "high"),
+    term("medical coding", ["coding", "CPT", "ICD"], "high"),
+    term("medical records", ["records", "EHR", "EMR"], "medium"),
+    term("HIPAA", ["patient privacy"], "medium"),
+    term("data entry", ["typing", "entry"], "medium")
+  ],
+  general: []
 };
 
-const jobTypeKeywordRules = {
-  warehouse_associate: { high: ["warehouse", "order picking", "RF scanner", "shipping", "receiving", "inventory", "pallet jack", "material handling"], medium: ["picking", "packing", "loading", "unloading", "scanning"] },
-  forklift_operator: { high: ["forklift", "equipment inspection", "loading", "unloading", "pallets", "warehouse", "safety"], medium: ["shipping", "receiving", "inventory", "material handling"] },
-  machine_operator: { high: ["machine operation", "equipment monitoring", "quality checks", "troubleshooting", "setup", "restarts", "manufacturing", "safety"], medium: ["production flow", "changeovers", "material handling", "12-hour shifts"] },
-  customer_service_representative: { high: ["customer service", "customer support", "communication", "problem solving", "documentation", "de-escalation"], medium: ["phone etiquette", "CRM", "active listening", "customer satisfaction"] },
-  data_entry_clerk: { high: ["data entry", "typing", "accuracy", "attention to detail", "records", "spreadsheets"], medium: ["Microsoft Office", "clerical", "documentation"] },
-  certified_nursing_assistant: { high: ["CNA", "patient care", "vital signs", "ADLs", "infection control", "documentation", "HIPAA"], medium: ["compassion", "safety", "teamwork"] },
-  security_officer: { high: ["security", "patrol", "access control", "incident reports", "surveillance", "observation"], medium: ["emergency response", "de-escalation", "customer service"] },
-  maintenance_technician: { high: ["maintenance", "troubleshooting", "repair", "preventive maintenance", "work orders", "hand tools", "power tools"], medium: ["electrical", "plumbing", "equipment repair"] },
-  remote_customer_support_representative: { high: ["remote", "customer support", "chat support", "email support", "phone support", "documentation", "typing"], medium: ["CRM", "work from home", "problem solving"] },
-  it_help_desk_technician: { high: ["IT help desk", "technical support", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset"], medium: ["customer service", "documentation"] }
+const RELATED_ROLES = {
+  manufacturing: ["Machine Operator", "Production Worker", "Assembly Worker", "Manufacturing Associate", "Material Handler"],
+  warehouse: ["Warehouse Associate", "Material Handler", "Package Handler", "Forklift Operator", "Stocker"],
+  healthcare: ["Certified Nursing Assistant", "Patient Care Technician", "Home Health Aide", "Caregiver", "Medical Assistant"],
+  maintenance: ["Maintenance Technician", "Apartment Maintenance Technician", "Facilities Technician", "Repair Helper"],
+  electrical: ["Electrical Helper", "Apprentice Electrician", "Maintenance Helper"],
+  welding: ["Welder Helper", "Fabrication Helper", "Entry-Level Welder"],
+  diesel: ["Diesel Mechanic Helper", "Fleet Maintenance Helper", "Lube Technician"],
+  construction: ["Construction Laborer", "Carpenter Helper", "Installer", "Millwork Associate"],
+  customer_service: ["Customer Service Representative", "Call Center Representative", "Retail Associate", "Front Desk Agent"],
+  office: ["Office Assistant", "Data Entry Clerk", "Administrative Assistant", "Receptionist"],
+  driving: ["Delivery Driver", "Truck Driver", "Route Driver", "Driver Helper"],
+  security: ["Security Officer", "Access Control Officer", "Gate Guard"],
+  cleaning: ["Janitor", "Housekeeper", "Custodian"],
+  food_service: ["Cook", "Server", "Food Service Worker"],
+  education: ["Teacher Assistant", "Substitute Teacher", "Classroom Aide"],
+  it: ["IT Help Desk Technician", "Technical Support Specialist", "Desktop Support Trainee"]
 };
 
-const importanceWeights = { high: 5, medium: 3, soft: 1, helpful: 2 };
-const matchCredits = { exact: 1, related: 0.72, weak: 0.42, missing: 0 };
+function $(id) {
+  return document.getElementById(id);
+}
 
-const phraseBank = [...new Set([
-  ...Object.keys(relatedKeywordMap),
-  ...Object.values(presetKeywords).flat(),
-  "production flow", "rotating shifts", "12-hour shifts", "stable work history", "strong attendance", "team environment",
-  "customer satisfaction", "active listening", "scheduling", "calendar", "records", "organization", "confidentiality",
-  "route planning", "equipment inspection", "shop safety", "job site safety", "heavy equipment", "floor care",
-  "reservations", "check-in", "check-out", "food prep", "meal prep", "mobility assistance", "specimen collection",
-  "chairside assistance", "medication administration", "care plans", "patient education", "claims", "insurance",
-  "accounts payable", "accounts receivable", "reconciliation", "employee records", "risk assessment", "vulnerability"
-])];
+function text(value) {
+  return String(value ?? "");
+}
 
-const demoResume = `Harold Hilton Jr.
-Aiken, SC | 803-357-1978 | haroldhiltonjr@gmail.com
-
-SUMMARY
-Reliable industrial and manufacturing worker with over 3 years of hands-on production experience. Skilled in machine operation, equipment monitoring, production flow, safety procedures, quality checks, material handling, cleaning, setup, and restarts. CDL-A holder with TWIC card.
-
-SKILLS
-Machine operation, equipment monitoring, forklift, material handling, production line support, quality control, safety procedures, hand tools, power tools, residential electrical, carpentry, troubleshooting, CDL-A, TWIC
-
-EXPERIENCE
-Progress Rail — Bearing Presser / Machine Operator
-Dec 2023 – Jun 2026
-- Operated bearing press equipment in a fast-paced industrial production environment.
-- Scanned bearings, moved materials with forklift, wrapped pallets, and kept production moving safely.
-- Completed machine cleaning, setup, restarts, and basic troubleshooting.
-
-Shaw Industries — Twister Operator
-Nov 2022 – Oct 2023
-- Operated yarn production equipment across 84 positions per side on 12-hour shifts.
-- Maintained production flow, cleaned machines, reset equipment, and supported quality standards.
-
-MAC Electric — Residential Electrical Helper
-Nov 2022 – Feb 2023
-- Assisted with outlets, switches, ceiling fans, wiring, and basic electrical troubleshooting.
-
-EDUCATION
-South Aiken High School, 2017`;
-
-const demoJob = `Machine Operator
-
-Responsibilities:
-- Operate multiple pieces of industrial manufacturing equipment in a fast-paced production environment.
-- Monitor machines, perform quality checks, keep production flow moving, and follow safety procedures.
-- Complete machine setup, cleaning, restarts, changeovers, and basic troubleshooting.
-- Move materials, load equipment, and work as part of a team.
-
-Requirements:
-- Must be willing to work rotating swing shifts and 12-hour shifts.
-- Must be willing to learn and operate multiple pieces of equipment.
-- Previous industrial or manufacturing experience preferred.
-- Stable work history, strong attendance, safety mindset, and ability to work in a team environment.`;
-
-function normalize(text) {
-  return String(text || "")
+function normalize(value) {
+  return text(value)
     .toLowerCase()
-    .replace(/[–—]/g, "-")
-    .replace(/[^a-z0-9+.#@%/$\-\s]/g, " ")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9+#./ -]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function tokenize(text) {
-  return normalize(text)
-    .split(" ")
-    .filter(word => word.length > 2 && !stopWords.has(word) && !/^\d+$/.test(word));
+function escapeHTML(value) {
+  return text(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-function phraseInText(phrase, text) {
-  const normalizedPhrase = normalize(phrase);
-  const normalizedText = normalize(text);
-  if (!normalizedPhrase) return false;
-
-  if (normalizedPhrase.length <= 3 || /^[a-z0-9+.#-]+$/.test(normalizedPhrase)) {
-    return new RegExp(`(^|\\s)${escapeRegExp(normalizedPhrase)}(\\s|$)`, "i").test(normalizedText);
-  }
-
-  return normalizedText.includes(normalizedPhrase);
+function cleanList(items) {
+  return [...new Set(items.filter(Boolean).map(item => text(item).trim()).filter(Boolean))];
 }
 
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function joinEnglish(items) {
+  const list = cleanList(items);
+  if (list.length <= 1) return list[0] || "";
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(", ")}, and ${list[list.length - 1]}`;
 }
 
-function relatedTermsFor(keyword) {
-  const normalized = normalize(keyword);
-  const direct = relatedKeywordMap[keyword] || relatedKeywordMap[normalized] || [];
-  const reverse = Object.entries(relatedKeywordMap)
-    .filter(([, related]) => related.some(term => normalize(term) === normalized))
-    .map(([canonical]) => canonical);
-  return [...new Set([...direct, ...reverse])];
+function wordAppears(normalizedText, word) {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|\\s)${escaped}(?=\\s|$)`).test(normalizedText);
 }
 
-function uniqueList(items) {
-  return [...new Set((items || []).filter(Boolean))];
+function termMatchesText(termObj, normalizedText) {
+  return termObj.aliases.some(alias => {
+    const aliasNorm = normalize(alias);
+    if (!aliasNorm) return false;
+    if (aliasNorm.length <= 3) return wordAppears(normalizedText, aliasNorm);
+    if (normalizedText.includes(aliasNorm)) return true;
+
+    const words = aliasNorm.split(" ").filter(Boolean);
+    if (words.length === 1) {
+      const word = words[0];
+      if (word.length <= 3) return wordAppears(normalizedText, word);
+      const stem = word.replace(/(ing|ed|s)$/i, "");
+      return stem.length > 3 && normalizedText.includes(stem);
+    }
+
+    return words.every(word => {
+      if (word.length <= 3) return wordAppears(normalizedText, word);
+      const stem = word.replace(/(ing|ed|s)$/i, "");
+      return normalizedText.includes(word) || (stem.length > 3 && normalizedText.includes(stem));
+    });
+  });
 }
 
-function keywordRulesFor(jobType) {
-  const family = getJobFamily(jobType);
-  const familyRules = familyKeywordRules[family] || familyKeywordRules.general;
-  const directRules = jobTypeKeywordRules[jobType] || {};
+function weightFor(priority) {
+  if (priority === "high") return 3;
+  if (priority === "medium") return 2;
+  return 1;
+}
+
+function scoreFamilyInText(family, rawText) {
+  const normalizedText = normalize(rawText);
+  const terms = FAMILY_TERMS[family] || [];
+  let score = 0;
+  let matched = [];
+  terms.forEach(item => {
+    if (termMatchesText(item, normalizedText)) {
+      score += weightFor(item.priority);
+      matched.push(item.term);
+    }
+  });
+  return { family, score, matched };
+}
+
+function detectFamily(rawText) {
+  const candidates = Object.keys(FAMILY_TERMS)
+    .filter(family => family !== "general")
+    .map(family => scoreFamilyInText(family, rawText))
+    .sort((a, b) => b.score - a.score);
+
+  const best = candidates[0] || { family: "general", score: 0, matched: [] };
+  const second = candidates[1] || { family: "general", score: 0, matched: [] };
+  if (best.score < 4) return { family: "general", score: 0, matched: [], confidence: 0, second };
+  const confidence = Math.min(100, Math.round((best.score / Math.max(best.score + second.score, 1)) * 100));
+  return { ...best, confidence, second };
+}
+
+function getActiveTerms(jobText, family) {
+  const normalizedJob = normalize(jobText);
+  const familyTerms = FAMILY_TERMS[family] || [];
+  const active = familyTerms.filter(item => termMatchesText(item, normalizedJob));
+  return active.length ? active : familyTerms.slice(0, 10);
+}
+
+function analyzeKeywords(resumeText, jobText, targetFamily) {
+  const normalizedResume = normalize(resumeText);
+  const activeTerms = getActiveTerms(jobText, targetFamily);
+  let totalWeight = 0;
+  let matchedWeight = 0;
+  const exactMatched = [];
+  const missing = [];
+
+  activeTerms.forEach(item => {
+    const weight = weightFor(item.priority);
+    totalWeight += weight;
+    if (termMatchesText(item, normalizedResume)) {
+      matchedWeight += weight;
+      exactMatched.push({ ...item, status: "exact", confidence: 100 });
+    } else {
+      missing.push({ ...item, status: "missing", confidence: 0 });
+    }
+  });
+
+  const score = totalWeight ? Math.round((matchedWeight / totalWeight) * 100) : 0;
   return {
-    high: uniqueList([...(familyRules.high || []), ...(directRules.high || [])]),
-    medium: uniqueList([...(familyRules.medium || []), ...(directRules.medium || [])]),
-    soft: uniqueList([...(familyRules.soft || []), ...(directRules.soft || [])])
+    activeTerms,
+    score,
+    exactMatched,
+    missing,
+    criticalMissing: missing.filter(item => item.priority === "high"),
+    helpfulMissing: missing.filter(item => item.priority === "medium"),
+    softMissing: missing.filter(item => item.priority === "soft")
   };
 }
 
-function ruleImportance(term, jobType) {
-  const normalizedTerm = normalize(term);
-  const rules = keywordRulesFor(jobType);
-  if (rules.high.some(item => normalize(item) === normalizedTerm)) return "high";
-  if (rules.medium.some(item => normalize(item) === normalizedTerm)) return "medium";
-  if (rules.soft.some(item => normalize(item) === normalizedTerm)) return "soft";
-  return null;
+function getProofTerms(resumeText, family) {
+  const normalizedResume = normalize(resumeText);
+  return (FAMILY_TERMS[family] || [])
+    .filter(item => termMatchesText(item, normalizedResume))
+    .map(item => item.term);
 }
 
-function strongerImportance(current, next) {
-  const rank = { high: 3, medium: 2, helpful: 1, soft: 0 };
-  return (rank[next] || 0) > (rank[current] || 0) ? next : current;
+function getProofNeeded(family, missingItems) {
+  const highMissing = missingItems.filter(item => item.priority === "high").map(item => item.term);
+  if (highMissing.length) return highMissing.slice(0, 7);
+  return missingItems.map(item => item.term).slice(0, 7);
 }
 
-function keywordImportance(term, jobText, jobType, forcedImportance = null) {
-  if (forcedImportance) return forcedImportance;
-
-  const ruleMatch = ruleImportance(term, jobType);
-  if (ruleMatch) return ruleMatch;
-
-  const normalizedTerm = normalize(term);
-  const job = normalize(jobText);
-  const exactCount = normalizedTerm ? job.split(normalizedTerm).length - 1 : 0;
-  const isPhrase = term.includes(" ") || phraseBank.some(item => normalize(item) === normalizedTerm);
-  const strongTerms = [
-    "license", "certification", "certified", "CDL", "DOT", "forklift", "RF scanner", "safety", "quality", "customer service",
-    "data entry", "typing", "welding", "electrical", "HVAC", "plumbing", "patient care", "HIPAA", "machine operation",
-    "material handling", "maintenance", "troubleshooting", "inventory", "shipping", "receiving", "work orders", "technical support",
-    "security", "patrol", "access control", "cash handling", "POS", "medical coding", "medical billing", "cybersecurity"
-  ];
-  const isStrong = strongTerms.some(item => normalize(item) === normalizedTerm || normalizedTerm.includes(normalize(item)));
-
-  if (isStrong || exactCount > 1) return "high";
-  if (isPhrase) return "medium";
-  return "helpful";
+function getSelectedJobType(jobType) {
+  return JOB_TYPES[jobType] || JOB_TYPES.general;
 }
 
-function keywordWeight(importance) {
-  return importanceWeights[importance] || importanceWeights.helpful;
-}
+function buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms }) {
+  const selectedLabel = selected.label;
+  const jobFamilyLabel = FAMILY_LABELS[jobFamily.family] || "another job type";
+  const selectedFamilyLabel = FAMILY_LABELS[selectedFamily] || selectedLabel;
 
-function addKeyword(map, term, reason, jobText, jobType, forcedImportance = null) {
-  const clean = String(term || "").trim();
-  const normalized = normalize(clean);
-  if (!normalized || stopWords.has(normalized) || normalized.length < 3) return;
-  if (/^\d+$/.test(normalized)) return;
-  if (["required", "preferred", "duties", "responsibilities", "position", "company", "ability"].includes(normalized)) return;
-
-  const importance = keywordImportance(clean, jobText, jobType, forcedImportance);
-  const existing = map.get(normalized);
-
-  if (!existing) {
-    map.set(normalized, {
-      term: clean,
-      importance,
-      weight: keywordWeight(importance),
-      reasons: new Set([reason])
-    });
-    return;
+  if (selectedFamily !== "general" && jobFamily.family !== "general" && selectedFamily !== jobFamily.family && jobFamily.score >= 7) {
+    return {
+      category: "wrong_job_type",
+      title: "Possible Wrong Job Type Selected",
+      message: `You selected ${selectedLabel}, but this job post reads closer to ${jobFamilyLabel}. The report is stopping the rewrite so the resume does not get forced into the wrong category.`,
+      direction: `Switch the job type to ${jobFamilyLabel}, then scan again before using resume wording.`,
+      scoreLabel: "Wrong job type selected"
+    };
   }
 
-  existing.reasons.add(reason);
-  existing.importance = strongerImportance(existing.importance, importance);
-  existing.weight = keywordWeight(existing.importance);
-}
+  const score = keywordData.score;
+  const evidenceCount = evidenceTerms.length;
 
-function addRuleKeywords(map, jobText, jobType) {
-  const rules = keywordRulesFor(jobType);
-
-  rules.high.forEach(term => addKeyword(map, term, "high-priority job type skill", jobText, jobType, "high"));
-  rules.medium.forEach(term => addKeyword(map, term, "job type skill", jobText, jobType, "medium"));
-
-  // Soft skills are only added when the job post actually asks for them. This keeps the report from feeling generic.
-  rules.soft
-    .filter(term => phraseInText(term, jobText) || relatedTermsFor(term).some(related => phraseInText(related, jobText)))
-    .forEach(term => addKeyword(map, term, "job post soft skill", jobText, jobType, "soft"));
-}
-
-function extractImportantKeywords(jobText, jobType) {
-  const keywords = new Map();
-  const preset = presetKeywords[jobType] || presetKeywords.general;
-
-  addRuleKeywords(keywords, jobText, jobType);
-
-  preset.forEach(term => {
-    const forced = ruleImportance(term, jobType) || "medium";
-    addKeyword(keywords, term, "selected job type", jobText, jobType, forced);
-  });
-
-  phraseBank
-    .filter(phrase => phraseInText(phrase, jobText))
-    .forEach(phrase => addKeyword(keywords, phrase, "job post phrase", jobText, jobType));
-
-  const tokens = tokenize(jobText);
-  const counts = new Map();
-  tokens.forEach(token => counts.set(token, (counts.get(token) || 0) + 1));
-
-  [...counts.entries()]
-    .filter(([word]) => word.length > 3 && !stopWords.has(word))
-    .filter(([word]) => !/^(apply|online|benefits|schedule|needed|needed|plus|bonus|paid|training)$/i.test(word))
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 16)
-    .forEach(([word]) => addKeyword(keywords, word, "frequent job-post word", jobText, jobType));
-
-  const finalList = [...keywords.values()]
-    .map(item => ({ ...item, reasons: [...item.reasons] }))
-    .sort((a, b) => {
-      if (b.weight !== a.weight) return b.weight - a.weight;
-      return a.term.localeCompare(b.term);
-    });
-
-  return finalList.slice(0, 54);
-}
-
-function termTokens(term) {
-  return normalize(term)
-    .split(" ")
-    .filter(word => word.length > 2 && !stopWords.has(word));
-}
-
-function lightStem(word) {
-  return normalize(word)
-    .replace(/(ing|ers|er|ed|ies|s)$/i, "")
-    .trim();
-}
-
-function tokenSet(text) {
-  return new Set(tokenize(text).map(lightStem).filter(Boolean));
-}
-
-function findWeakMatch(keyword, resumeText) {
-  const words = termTokens(keyword);
-  if (!words.length) return null;
-
-  const resumeTokens = tokenSet(resumeText);
-  const matched = words.filter(word => resumeTokens.has(lightStem(word)));
-
-  if (words.length === 1) {
-    return matched.length ? matched[0] : null;
+  if (score >= 82 && evidenceCount >= 5) {
+    return {
+      category: "strong_match",
+      title: "Strong Match",
+      message: `This resume already proves several important ${selectedFamilyLabel} requirements from the job post. The rewrite below uses only the proof found in the resume.`,
+      direction: "Use the ATS-friendly wording below, then add numbers, equipment names, or shift details only where they are true.",
+      scoreLabel: "Strong match"
+    };
   }
 
-  const ratio = matched.length / words.length;
-  if (matched.length >= 2 && ratio >= 0.6) return matched.join(" + ");
+  if (score >= 65 && evidenceCount >= 4) {
+    return {
+      category: "good_match",
+      title: "Good Match",
+      message: `This resume matches the job type and shows real proof for the job post. The main fix is stronger ATS wording, not changing the facts.`,
+      direction: "Use the summary and bullets below as a stronger starting point based on the resume proof.",
+      scoreLabel: "Good match"
+    };
+  }
 
-  return null;
+  if (score >= 40 && evidenceCount >= 2) {
+    return {
+      category: "medium_match",
+      title: "Medium Match — Wording Gap",
+      message: `The resume shows some real ${selectedFamilyLabel} proof, but it is missing enough job-post wording to be a clean ATS match.`,
+      direction: "Use only the safe wording below. Add missing keywords only if the resume can honestly prove them.",
+      scoreLabel: "Medium match"
+    };
+  }
+
+  if (score >= 28 && resumeFamily.family !== "general" && resumeFamily.family !== jobFamily.family) {
+    const resumeFamilyLabel = FAMILY_LABELS[resumeFamily.family] || "another job type";
+    return {
+      category: "transferable",
+      title: "Low-to-Medium Match — Transferable Only",
+      message: `The resume is stronger for ${resumeFamilyLabel} roles than this job post. Some skills may transfer, but the app will not create job-specific claims the resume does not prove.`,
+      direction: "Use the direction section below to decide whether to apply, pivot, or add real proof first.",
+      scoreLabel: "Transferable match"
+    };
+  }
+
+  return {
+    category: "weak_evidence",
+    title: "Weak Evidence for This Job",
+    message: `This resume does not show enough direct proof for ${selectedLabel}. To avoid creating false experience, no job-specific resume rewrite was generated.`,
+    direction: "Add real training, certification, or work experience first if it applies. Otherwise, apply to roles closer to the resume proof.",
+    scoreLabel: "Weak evidence"
+  };
 }
 
-function getKeywordMatch(keyword, resumeText) {
-  if (phraseInText(keyword, resumeText)) {
-    return { status: "exact", matchedBy: keyword, confidence: 100 };
+function hasResumeProof(resumeText, family, proofName) {
+  const item = (FAMILY_TERMS[family] || []).find(termItem => termItem.term === proofName);
+  return item ? termMatchesText(item, normalize(resumeText)) : false;
+}
+
+function buildManufacturingWording(resumeText, diagnosisCategory) {
+  const hasMachine = hasResumeProof(resumeText, "manufacturing", "machine operation") || hasResumeProof(resumeText, "manufacturing", "equipment monitoring");
+  const hasQuality = hasResumeProof(resumeText, "manufacturing", "quality checks");
+  const hasSafety = hasResumeProof(resumeText, "manufacturing", "safety procedures");
+  const hasSetup = hasResumeProof(resumeText, "manufacturing", "machine setup");
+  const hasCleaning = hasResumeProof(resumeText, "manufacturing", "machine cleaning");
+  const hasRestarts = hasResumeProof(resumeText, "manufacturing", "machine restarts");
+  const hasTroubleshooting = hasResumeProof(resumeText, "manufacturing", "basic troubleshooting");
+  const hasMaterial = hasResumeProof(resumeText, "manufacturing", "material handling");
+  const hasLoading = hasResumeProof(resumeText, "manufacturing", "loading materials");
+  const hasGoals = hasResumeProof(resumeText, "manufacturing", "production goals");
+  const hasTwelve = hasResumeProof(resumeText, "manufacturing", "12-hour shifts");
+  const hasTeam = hasResumeProof(resumeText, "manufacturing", "team-based production");
+
+  const experienceParts = [];
+  if (hasMachine) experienceParts.push("operating and monitoring production equipment");
+  if (hasQuality) experienceParts.push("completing quality checks");
+  if (hasLoading || hasMaterial) experienceParts.push("loading and handling materials");
+  if (hasSafety) experienceParts.push("following safety procedures");
+
+  const skillParts = [];
+  if (hasSetup) skillParts.push("machine setup");
+  if (hasCleaning) skillParts.push("cleaning");
+  if (hasRestarts) skillParts.push("restarts");
+  if (hasTroubleshooting) skillParts.push("basic troubleshooting");
+  if (hasMaterial) skillParts.push("material handling");
+  if (hasTeam || hasGoals) skillParts.push("working with team members to meet production goals");
+
+  const summarySentences = [];
+  if (experienceParts.length) {
+    summarySentences.push(`Manufacturing worker with experience ${joinEnglish(experienceParts)} in fast-paced production environments.`);
+  }
+  if (skillParts.length) {
+    summarySentences.push(`Skilled in ${joinEnglish(skillParts)} while supporting safe, steady production flow.`);
   }
 
-  const related = relatedTermsFor(keyword);
-  const matchedRelated = related.find(term => phraseInText(term, resumeText));
-  if (matchedRelated) {
-    return { status: "related", matchedBy: matchedRelated, confidence: 75 };
+  const bullets = [];
+  if (hasMachine) {
+    bullets.push(`Operated and monitored production machines${hasTwelve ? " during 12-hour shifts" : " during assigned shifts"} while following safety and quality standards.`);
+  }
+  const machineTaskParts = [];
+  if (hasSetup) machineTaskParts.push("machine setup");
+  if (hasCleaning) machineTaskParts.push("cleaning");
+  if (hasRestarts) machineTaskParts.push("restarts");
+  if (hasTroubleshooting) machineTaskParts.push("basic troubleshooting");
+  if (machineTaskParts.length) {
+    bullets.push(`Completed ${joinEnglish(machineTaskParts)} to keep production equipment moving and reduce downtime.`);
+  }
+  const flowParts = [];
+  if (hasLoading || hasMaterial) flowParts.push("loaded and handled materials");
+  if (hasQuality) flowParts.push("checked parts for defects");
+  if (hasTeam || hasGoals) flowParts.push("worked with team members to meet daily production goals");
+  if (flowParts.length) {
+    bullets.push(`${joinEnglish(flowParts).replace(/^./, char => char.toUpperCase())}.`);
   }
 
-  const weakMatch = findWeakMatch(keyword, resumeText);
-  if (weakMatch) {
-    return { status: "weak", matchedBy: weakMatch, confidence: 45 };
+  return {
+    summary: summarySentences.join(" "),
+    bullets: bullets.slice(0, diagnosisCategory === "medium_match" ? 3 : 4)
+  };
+}
+
+function buildHealthcareWording(resumeText, diagnosisCategory) {
+  const checks = {
+    cna: hasResumeProof(resumeText, "healthcare", "CNA certification"),
+    patient: hasResumeProof(resumeText, "healthcare", "patient care"),
+    resident: hasResumeProof(resumeText, "healthcare", "resident care"),
+    adls: hasResumeProof(resumeText, "healthcare", "ADLs"),
+    vitals: hasResumeProof(resumeText, "healthcare", "vital signs"),
+    infection: hasResumeProof(resumeText, "healthcare", "infection control"),
+    hipaa: hasResumeProof(resumeText, "healthcare", "HIPAA"),
+    documentation: hasResumeProof(resumeText, "healthcare", "documenting care"),
+    mobility: hasResumeProof(resumeText, "healthcare", "mobility assistance"),
+    caregiver: hasResumeProof(resumeText, "healthcare", "caregiver experience")
+  };
+
+  const experienceParts = [];
+  if (checks.patient || checks.resident) experienceParts.push("supporting patient and resident care");
+  if (checks.adls) experienceParts.push("assisting with ADLs");
+  if (checks.vitals) experienceParts.push("checking vital signs");
+  if (checks.mobility) experienceParts.push("helping with mobility and transfers");
+
+  const complianceParts = [];
+  if (checks.infection) complianceParts.push("infection control procedures");
+  if (checks.hipaa) complianceParts.push("HIPAA guidelines");
+  if (checks.documentation) complianceParts.push("care documentation");
+
+  const summarySentences = [];
+  const title = checks.cna ? "Certified Nursing Assistant" : checks.caregiver ? "Healthcare support worker" : "Patient care worker";
+  if (experienceParts.length) summarySentences.push(`${title} with experience ${joinEnglish(experienceParts)}.`);
+  if (complianceParts.length) summarySentences.push(`Knowledgeable in ${joinEnglish(complianceParts)} while keeping patient safety and privacy in focus.`);
+
+  const bullets = [];
+  if (checks.patient || checks.resident || checks.adls || checks.mobility) {
+    const parts = [];
+    if (checks.patient || checks.resident) parts.push("provided patient or resident support");
+    if (checks.adls) parts.push("assisted with ADLs");
+    if (checks.mobility) parts.push("helped with mobility needs");
+    bullets.push(`${joinEnglish(parts).replace(/^./, char => char.toUpperCase())} while following care instructions.`);
+  }
+  if (checks.vitals || checks.documentation) {
+    const parts = [];
+    if (checks.vitals) parts.push("checked vital signs");
+    if (checks.documentation) parts.push("documented care details");
+    bullets.push(`${joinEnglish(parts).replace(/^./, char => char.toUpperCase())} to support accurate patient care records.`);
+  }
+  if (checks.infection || checks.hipaa) {
+    bullets.push(`Followed ${joinEnglish(complianceParts)} to support patient safety, privacy, and clean care practices.`);
   }
 
-  return { status: "missing", matchedBy: null, confidence: 0 };
+  return { summary: summarySentences.join(" "), bullets: bullets.slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
+function buildWarehouseWording(resumeText, diagnosisCategory) {
+  const hasWarehouse = hasResumeProof(resumeText, "warehouse", "warehouse operations");
+  const hasLoad = hasResumeProof(resumeText, "warehouse", "loading and unloading");
+  const hasMaterial = hasResumeProof(resumeText, "warehouse", "material handling");
+  const hasPalletJack = hasResumeProof(resumeText, "warehouse", "pallet jack");
+  const hasWrap = hasResumeProof(resumeText, "warehouse", "pallet wrapping");
+  const hasInventory = hasResumeProof(resumeText, "warehouse", "inventory organization");
+  const hasSafety = hasResumeProof(resumeText, "warehouse", "warehouse safety");
+
+  const parts = [];
+  if (hasWarehouse) parts.push("warehouse operations");
+  if (hasLoad) parts.push("loading and unloading materials");
+  if (hasMaterial) parts.push("material handling");
+  if (hasInventory) parts.push("inventory organization");
+  const summary = parts.length ? `Warehouse worker with experience in ${joinEnglish(parts)}. Skilled with ${joinEnglish([hasPalletJack ? "pallet jacks" : "", hasWrap ? "pallet wrapping" : "", hasSafety ? "warehouse safety procedures" : ""])}.` : "";
+
+  const bullets = [];
+  if (hasLoad || hasMaterial) bullets.push(`Loaded, unloaded, and handled materials while keeping warehouse areas organized.`);
+  if (hasPalletJack || hasWrap) bullets.push(`Used ${joinEnglish([hasPalletJack ? "pallet jacks" : "", hasWrap ? "pallet wrapping" : ""])} to support daily warehouse flow.`);
+  if (hasInventory || hasSafety) bullets.push(`${joinEnglish([hasInventory ? "Organized inventory" : "", hasSafety ? "followed warehouse safety rules" : ""]).replace(/^./, char => char.toUpperCase())}.`);
+
+  return { summary, bullets: bullets.slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
+
+const FAMILY_WORDING_BLUEPRINTS = {
+  maintenance: {
+    title: "Maintenance Technician",
+    summaryLead: "with hands-on experience",
+    skillLead: "Skilled in",
+    items: {
+      "preventive maintenance": { summary: "performing preventive maintenance checks", skill: "preventive maintenance", bullet: "Performed preventive maintenance checks to keep equipment, units, or facilities operating safely." },
+      "repair": { summary: "completing repair work", skill: "repair work", bullet: "Completed repair tasks while keeping work areas safe, organized, and ready for continued use." },
+      "troubleshooting": { summary: "troubleshooting equipment and facility issues", skill: "troubleshooting", bullet: "Troubleshot reported issues, identified likely causes, and supported repairs through completion." },
+      "electrical repair": { summary: "handling basic electrical repair tasks", skill: "outlets, switches, wiring, and fixtures", bullet: "Supported basic electrical repairs involving outlets, switches, wiring, ceiling fans, or fixtures where assigned." },
+      "plumbing": { summary: "supporting plumbing repairs", skill: "plumbing repair", bullet: "Assisted with plumbing-related repairs such as leaks, sinks, toilets, pipes, or basic fixture issues." },
+      "HVAC": { summary: "supporting HVAC-related maintenance", skill: "HVAC maintenance support", bullet: "Supported HVAC-related maintenance by checking heating, cooling, or air-conditioning issues within assigned duties." },
+      "hand and power tools": { summary: "using hand and power tools", skill: "hand and power tools", bullet: "Used hand and power tools safely to complete maintenance, repair, installation, or service tasks." },
+      "work orders": { summary: "responding to work orders and service requests", skill: "work orders", bullet: "Completed work orders or service requests while documenting issues and work performed." }
+    }
+  },
+  electrical: {
+    title: "Electrical Helper",
+    summaryLead: "with hands-on experience",
+    skillLead: "Skilled in",
+    items: {
+      "electrical wiring": { summary: "installing and supporting electrical wiring", skill: "electrical wiring", bullet: "Installed or assisted with electrical wiring while following assigned safety and installation procedures." },
+      "outlets and switches": { summary: "working with outlets and switches", skill: "outlets and switches", bullet: "Installed, replaced, or supported work on outlets, switches, and related residential electrical components." },
+      "fixtures": { summary: "installing fixtures, lighting, or ceiling fans", skill: "fixtures, lighting, and ceiling fans", bullet: "Installed or assisted with fixtures, lighting, ceiling fans, or related electrical finish work." },
+      "troubleshooting": { summary: "supporting electrical troubleshooting and repair", skill: "electrical troubleshooting", bullet: "Supported electrical troubleshooting by checking issues and assisting with safe repair steps." },
+      "conduit": { summary: "working with conduit or EMT", skill: "conduit", bullet: "Measured, installed, or assisted with conduit runs according to assigned electrical tasks." },
+      "panels": { summary: "supporting panel or breaker work", skill: "panels and breakers", bullet: "Assisted with panel, breaker, or electrical distribution tasks under assigned direction." }
+    }
+  },
+  welding: {
+    title: "Welding Worker",
+    summaryLead: "with shop or fabrication experience",
+    skillLead: "Skilled in",
+    items: {
+      "welding": { summary: "performing welding tasks", skill: "welding", bullet: "Performed welding tasks while following shop, safety, and quality expectations." },
+      "fabrication": { summary: "supporting fabrication work", skill: "metal fabrication", bullet: "Supported fabrication work by preparing, fitting, or assembling metal parts for welding or production." },
+      "MIG": { summary: "using MIG welding processes", skill: "MIG welding", bullet: "Used MIG welding processes where assigned to support fabrication or repair work." },
+      "TIG": { summary: "using TIG welding processes", skill: "TIG welding", bullet: "Used TIG welding processes where assigned to support precise fabrication or repair tasks." },
+      "grinding": { summary: "grinding and preparing metal surfaces", skill: "grinding", bullet: "Used grinding tools to clean, smooth, or prepare metal parts before or after welding." },
+      "cutting": { summary: "cutting materials for fabrication", skill: "cutting", bullet: "Cut materials to support fabrication, fitting, or welding tasks." },
+      "blueprints": { summary: "reading blueprints or drawings", skill: "blueprints and drawings", bullet: "Used blueprints, drawings, or work instructions to guide fabrication or welding tasks." }
+    }
+  },
+  diesel: {
+    title: "Diesel Mechanic",
+    summaryLead: "with hands-on mechanical experience",
+    skillLead: "Skilled in",
+    items: {
+      "diesel engines": { summary: "working around diesel engines", skill: "diesel engines", bullet: "Worked with diesel engines or related heavy equipment systems during service, inspection, or repair tasks." },
+      "diagnostics": { summary: "supporting diagnostics and troubleshooting", skill: "diagnostics", bullet: "Supported diagnostics by checking reported issues, inspecting components, and helping identify repair needs." },
+      "preventive maintenance": { summary: "performing preventive maintenance", skill: "preventive maintenance", bullet: "Performed preventive maintenance checks to support safe and reliable equipment operation." },
+      "brakes": { summary: "working with brake systems", skill: "brakes", bullet: "Inspected, serviced, or assisted with brake-related repair tasks where assigned." },
+      "hydraulics": { summary: "working around hydraulic systems", skill: "hydraulics", bullet: "Inspected or supported work on hydraulic systems, hoses, leaks, or related components." },
+      "heavy equipment": { summary: "supporting heavy equipment or fleet work", skill: "heavy equipment", bullet: "Supported service or repair work on trucks, trailers, fleet vehicles, or heavy equipment." },
+      "inspection": { summary: "performing inspections", skill: "inspections", bullet: "Completed inspections to identify safety, service, or repair needs before equipment returned to use." }
+    }
+  },
+  construction: {
+    title: "Construction Worker",
+    summaryLead: "with hands-on jobsite experience",
+    skillLead: "Skilled in",
+    items: {
+      "construction": { summary: "working in residential or construction environments", skill: "construction work", bullet: "Worked in construction or residential jobsite environments while following assigned tasks and safety expectations." },
+      "carpentry": { summary: "performing carpentry, trim, door, or millwork tasks", skill: "carpentry and millwork", bullet: "Performed carpentry-related tasks involving doors, trim, millwork, or residential installation work." },
+      "hand and power tools": { summary: "using hand and power tools", skill: "hand and power tools", bullet: "Used hand and power tools to complete installation, repair, carpentry, or construction tasks." },
+      "installation": { summary: "installing building materials or components", skill: "installation", bullet: "Installed building materials or components while following jobsite instructions and quality expectations." },
+      "measuring and cutting": { summary: "measuring and cutting materials", skill: "measuring and cutting", bullet: "Measured and cut materials to support accurate installation, carpentry, or construction work." },
+      "safety procedures": { summary: "following jobsite safety procedures", skill: "jobsite safety", bullet: "Followed jobsite safety procedures while handling tools, materials, and assigned construction tasks." }
+    }
+  },
+  customer_service: {
+    title: "Customer Service Representative",
+    summaryLead: "with front-line service experience",
+    skillLead: "Skilled in",
+    items: {
+      "customer service": { summary: "helping customers and resolving service needs", skill: "customer service", bullet: "Helped customers with questions, service needs, purchases, or account concerns while maintaining professional service." },
+      "phone support": { summary: "handling customer phone support", skill: "phone support", bullet: "Handled phone calls by listening to customer needs, providing information, and documenting next steps." },
+      "CRM": { summary: "using CRM or customer systems", skill: "CRM systems", bullet: "Used CRM or customer systems to look up information, update records, or track customer interactions." },
+      "de-escalation": { summary: "de-escalating complaints or customer issues", skill: "de-escalation", bullet: "De-escalated customer concerns by listening, clarifying the issue, and helping move the situation toward resolution." },
+      "cash handling": { summary: "handling cash, POS, or transactions", skill: "cash handling and POS", bullet: "Processed POS transactions, handled payments, or balanced cash-handling tasks accurately." },
+      "sales": { summary: "supporting sales goals or product recommendations", skill: "sales support", bullet: "Supported sales goals by answering product questions, recommending options, or following up with customers." }
+    }
+  },
+  office: {
+    title: "Office Assistant",
+    summaryLead: "with administrative support experience",
+    skillLead: "Skilled in",
+    items: {
+      "data entry": { summary: "entering and updating information accurately", skill: "data entry", bullet: "Entered and updated information accurately in records, spreadsheets, systems, or office documents." },
+      "records": { summary: "maintaining records, files, or documents", skill: "records and filing", bullet: "Maintained records, files, or documents so information stayed organized and easy to locate." },
+      "scheduling": { summary: "supporting scheduling or calendar tasks", skill: "scheduling", bullet: "Scheduled appointments, updated calendars, or supported office coordination tasks." },
+      "email": { summary: "handling email communication", skill: "email communication", bullet: "Handled email communication by sending updates, responding to requests, or keeping information moving." },
+      "Microsoft Office": { summary: "using Microsoft Office, Excel, Word, or spreadsheets", skill: "Microsoft Office", bullet: "Used Microsoft Office, Excel, Word, or spreadsheets to complete administrative or data-entry tasks." },
+      "phone calls": { summary: "answering phones or front-desk calls", skill: "phone calls", bullet: "Answered phone calls, routed information, or supported front-desk communication needs." }
+    }
+  },
+  driving: {
+    title: "Driver",
+    summaryLead: "with driving, delivery, or CDL-related experience",
+    skillLead: "Skilled in",
+    items: {
+      "CDL": { summary: "holding or using CDL credentials", skill: "CDL", bullet: "Maintained CDL-related qualifications or training while preparing for safe commercial driving work." },
+      "DOT": { summary: "following DOT expectations", skill: "DOT requirements", bullet: "Followed DOT-related expectations, safety rules, or compliance steps during driving or training duties." },
+      "safe driving": { summary: "following safe driving practices", skill: "safe driving", bullet: "Operated vehicles with attention to safety, traffic conditions, and assigned route expectations." },
+      "pre-trip inspection": { summary: "completing pre-trip inspections", skill: "pre-trip inspections", bullet: "Completed or practiced pre-trip inspections to identify safety concerns before operating equipment." },
+      "post-trip inspection": { summary: "completing post-trip inspections", skill: "post-trip inspections", bullet: "Completed or practiced post-trip inspections to document equipment condition after routes or training." },
+      "route delivery": { summary: "supporting route delivery work", skill: "route delivery", bullet: "Completed route, delivery, or transport tasks while keeping timing, safety, and customer requirements in mind." },
+      "TWIC": { summary: "holding TWIC credentials", skill: "TWIC", bullet: "Maintained TWIC credentials where required for transportation, port, or secure-site access." }
+    }
+  },
+  security: {
+    title: "Security Officer",
+    summaryLead: "with safety and site-monitoring experience",
+    skillLead: "Skilled in",
+    items: {
+      "security": { summary: "supporting site safety and security", skill: "site security", bullet: "Supported site safety and security by staying alert, following procedures, and reporting concerns." },
+      "patrols": { summary: "conducting patrols", skill: "patrols", bullet: "Conducted patrols or area checks to monitor activity, identify concerns, and support a safe environment." },
+      "incident reports": { summary: "writing incident reports", skill: "incident reports", bullet: "Documented incidents, observations, or unusual activity through clear reports or required logs." },
+      "access control": { summary: "checking access points, badges, or visitors", skill: "access control", bullet: "Controlled access by checking visitors, badges, entrances, or assigned security points." },
+      "surveillance": { summary: "monitoring cameras or surveillance systems", skill: "surveillance", bullet: "Monitored cameras, surveillance systems, or assigned areas to identify and report security concerns." }
+    }
+  },
+  cleaning: {
+    title: "Cleaning Worker",
+    summaryLead: "with cleaning and facility support experience",
+    skillLead: "Skilled in",
+    items: {
+      "cleaning": { summary: "cleaning rooms, work areas, or facilities", skill: "cleaning", bullet: "Cleaned rooms, work areas, common areas, or facilities according to assigned standards." },
+      "sanitation": { summary: "sanitizing surfaces and high-touch areas", skill: "sanitation", bullet: "Sanitized surfaces, high-touch areas, rooms, or equipment to support clean and safe spaces." },
+      "trash removal": { summary: "removing trash and waste", skill: "trash removal", bullet: "Removed trash, waste, or debris while keeping assigned areas clean and organized." },
+      "floor care": { summary: "sweeping, mopping, vacuuming, or floor care", skill: "floor care", bullet: "Completed floor care tasks such as sweeping, mopping, vacuuming, or cleaning assigned areas." },
+      "restocking supplies": { summary: "restocking supplies", skill: "restocking supplies", bullet: "Restocked supplies in rooms, restrooms, carts, or work areas so daily operations could continue smoothly." }
+    }
+  },
+  food_service: {
+    title: "Food Service Worker",
+    summaryLead: "with food service experience",
+    skillLead: "Skilled in",
+    items: {
+      "food preparation": { summary: "preparing food or supporting kitchen prep", skill: "food preparation", bullet: "Prepared food, completed prep tasks, or supported kitchen production according to assigned standards." },
+      "food safety": { summary: "following food safety and sanitation procedures", skill: "food safety", bullet: "Followed food safety, sanitation, and clean-work-area procedures during food service tasks." },
+      "customer service": { summary: "serving guests or customers", skill: "guest service", bullet: "Served guests or customers by taking requests, answering questions, or supporting front-of-house needs." },
+      "orders": { summary: "taking or preparing orders", skill: "orders", bullet: "Took, prepared, or organized customer orders while keeping accuracy and timing in focus." },
+      "cash handling": { summary: "handling POS or payment transactions", skill: "cash handling and POS", bullet: "Handled POS or payment transactions accurately during food service operations." }
+    }
+  },
+  education: {
+    title: "Education Support Worker",
+    summaryLead: "with classroom or student-support experience",
+    skillLead: "Skilled in",
+    items: {
+      "student support": { summary: "supporting students in classroom settings", skill: "student support", bullet: "Supported students in classroom or learning settings while following teacher or school expectations." },
+      "lesson support": { summary: "assisting with lessons or instruction", skill: "lesson support", bullet: "Assisted with lessons, instructional activities, or classroom tasks to support student learning." },
+      "behavior management": { summary: "supporting behavior or classroom management", skill: "classroom management", bullet: "Supported classroom behavior expectations by redirecting students and helping maintain a focused learning environment." },
+      "supervision": { summary: "supervising students", skill: "student supervision", bullet: "Supervised students during classroom, hallway, lunch, recess, or activity periods as assigned." }
+    }
+  },
+  it: {
+    title: "IT Support Technician",
+    summaryLead: "with technical support experience",
+    skillLead: "Skilled in",
+    items: {
+      "technical support": { summary: "providing technical support", skill: "technical support", bullet: "Provided technical support by helping users identify issues, follow steps, or restore basic access." },
+      "troubleshooting": { summary: "troubleshooting technical issues", skill: "technical troubleshooting", bullet: "Troubleshot technical issues by checking symptoms, testing solutions, and documenting next steps." },
+      "tickets": { summary: "working with tickets or service requests", skill: "ticketing systems", bullet: "Created, updated, or resolved tickets while tracking user issues and support actions." },
+      "hardware": { summary: "supporting hardware such as laptops, desktops, or printers", skill: "hardware support", bullet: "Supported hardware issues involving laptops, desktops, printers, or connected devices." },
+      "software": { summary: "supporting software or Windows applications", skill: "software support", bullet: "Supported software, Windows, or application issues by guiding users through fixes or escalation steps." },
+      "password resets": { summary: "handling password resets or account access", skill: "password resets", bullet: "Assisted with password resets, account access, or login issues according to support procedures." },
+      "networking": { summary: "supporting basic network troubleshooting", skill: "network troubleshooting", bullet: "Supported basic network troubleshooting by checking connectivity, devices, or escalation details." },
+      "cybersecurity": { summary: "working with cybersecurity tools or security monitoring", skill: "cybersecurity", bullet: "Supported cybersecurity tasks by monitoring alerts, following security procedures, or documenting concerns." }
+    }
+  },
+  healthcare_admin: {
+    title: "Medical Office Worker",
+    summaryLead: "with medical office or health records experience",
+    skillLead: "Skilled in",
+    items: {
+      "medical billing": { summary: "supporting medical billing or claims work", skill: "medical billing", bullet: "Supported medical billing, claims, or insurance-related tasks while maintaining accurate information." },
+      "medical coding": { summary: "supporting medical coding work", skill: "medical coding", bullet: "Supported medical coding work involving codes, records, or claim documentation where assigned." },
+      "medical records": { summary: "maintaining medical records", skill: "medical records", bullet: "Maintained medical records, EHR details, or patient information with attention to accuracy." },
+      "HIPAA": { summary: "following HIPAA and patient privacy requirements", skill: "HIPAA", bullet: "Followed HIPAA and patient privacy requirements when handling medical or patient information." },
+      "data entry": { summary: "entering medical or office data", skill: "data entry", bullet: "Entered medical, billing, coding, or office data accurately into records or systems." }
+    }
+  }
+};
+
+function titleForWording(selectedLabel, family) {
+  const safe = text(selectedLabel).trim();
+  if (safe && safe !== "General / Any Job") return safe;
+  return FAMILY_WORDING_BLUEPRINTS[family]?.title || FAMILY_LABELS[family] || "Worker";
+}
+
+function buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel) {
+  const blueprint = FAMILY_WORDING_BLUEPRINTS[family];
+  if (!blueprint) return { summary: "", bullets: [] };
+
+  const proved = Object.entries(blueprint.items)
+    .filter(([proofName]) => proofTerms.includes(proofName) || hasResumeProof(resumeText, family, proofName))
+    .map(([proofName, data]) => ({ proofName, ...data }));
+
+  if (!proved.length) return { summary: "", bullets: [] };
+
+  const title = titleForWording(selectedLabel, family);
+  const summaryParts = cleanList(proved.map(item => item.summary)).slice(0, 5);
+  const skillParts = cleanList(proved.map(item => item.skill)).slice(0, 6);
+  const summarySentences = [];
+  if (summaryParts.length) summarySentences.push(`${title} ${blueprint.summaryLead} ${joinEnglish(summaryParts)}.`);
+  if (skillParts.length >= 2) summarySentences.push(`${blueprint.skillLead} ${joinEnglish(skillParts)}.`);
+
+  const bullets = cleanList(proved.map(item => item.bullet)).slice(0, diagnosisCategory === "medium_match" ? 3 : 4);
+  return { summary: summarySentences.join(" "), bullets };
+}
+
+function buildTemplateWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel = "") {
+  if (family === "manufacturing") return buildManufacturingWording(resumeText, diagnosisCategory);
+  if (family === "healthcare") return buildHealthcareWording(resumeText, diagnosisCategory);
+  if (family === "warehouse") return buildWarehouseWording(resumeText, diagnosisCategory);
+  return buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel);
+}
+
+function buildOutput(analysis) {
+  const { diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText } = analysis;
+  const proofNeeded = getProofNeeded(selectedFamily === "general" ? jobFamily.family : selectedFamily, keywordData.missing);
+  const resumeFamilyLabel = FAMILY_LABELS[resumeFamily.family] || "the resume's current field";
+  const jobFamilyLabel = FAMILY_LABELS[jobFamily.family] || selected.label;
+
+  if (diagnosis.category === "wrong_job_type") {
+    return {
+      summaryHeading: "Wrong job type warning",
+      bulletHeading: "Switch before using wording",
+      summary: `No resume rewrite generated. You selected ${selected.label}, but the job post matches ${jobFamilyLabel}. The app is stopping the rewrite because the selected job type would produce the wrong advice.`,
+      bullets: [
+        `Change the job type to ${jobFamilyLabel} or the closest matching option in the dropdown.`,
+        "Run the scan again before copying any summary or resume bullets.",
+        `Do not force this resume into ${selected.label} if the job post is actually ${jobFamilyLabel}.`
+      ]
+    };
+  }
+
+  if (diagnosis.category === "weak_evidence") {
+    const closerRoles = RELATED_ROLES[resumeFamily.family] || RELATED_ROLES[jobFamily.family] || [];
+    return {
+      summaryHeading: "Right Direction",
+      bulletHeading: "Proof needed before rewrite",
+      summary: `No ${selected.label}-specific rewrite generated. This resume does not prove enough direct ${jobFamilyLabel} experience yet. Missing proof includes ${joinEnglish(proofNeeded)}. Add those only if they are real.`,
+      bullets: [
+        `Do not add ${joinEnglish(proofNeeded.slice(0, 5))} unless you have actually done those duties or completed that training.`,
+        closerRoles.length ? `This resume is currently stronger for ${joinEnglish(closerRoles.slice(0, 5))}.` : `This resume is currently stronger for ${resumeFamilyLabel} roles.`,
+        `To become stronger for ${selected.label}, add real training, certification, clinical experience, or job duties that prove the missing requirements.`
+      ]
+    };
+  }
+
+  if (diagnosis.category === "transferable") {
+    const closerRoles = RELATED_ROLES[resumeFamily.family] || [];
+    return {
+      summaryHeading: "Transferable Direction",
+      bulletHeading: "Safe next steps",
+      summary: `No full ${selected.label} rewrite generated. The resume shows stronger proof for ${resumeFamilyLabel}, while the job post is closer to ${jobFamilyLabel}.`,
+      bullets: [
+        evidenceTerms.length ? `Safe proof already shown: ${joinEnglish(evidenceTerms.slice(0, 5))}.` : `Direct proof for this job type is limited.`,
+        proofNeeded.length ? `Do not add ${joinEnglish(proofNeeded.slice(0, 5))} unless it is true.` : "Do not add job-specific duties unless the resume proves them.",
+        closerRoles.length ? `A closer application target would be ${joinEnglish(closerRoles.slice(0, 4))}.` : "Apply to roles that match the strongest proof already in the resume."
+      ]
+    };
+  }
+
+  const familyForWording = selectedFamily === "general" ? jobFamily.family : selectedFamily;
+  const wording = buildTemplateWording(resumeText, familyForWording, diagnosis.category, evidenceTerms, selected.label);
+  if (!wording.summary || wording.bullets.length < 2) {
+    return {
+      summaryHeading: "Right Direction",
+      bulletHeading: "Proof needed before stronger wording",
+      summary: `The score is not enough by itself. The app found limited copy-ready proof for ${selected.label}, so it is not showing generic filler wording.`,
+      bullets: [
+        evidenceTerms.length ? `Resume proof found: ${joinEnglish(evidenceTerms.slice(0, 6))}.` : "Add more direct proof before rewriting this resume.",
+        proofNeeded.length ? `Add ${joinEnglish(proofNeeded.slice(0, 5))} only if those details are true.` : "Use the employer's wording only where your resume supports it.",
+        "Specific or do not show it. Proven or do not write it."
+      ]
+    };
+  }
+
+  const mediumNote = diagnosis.category === "medium_match"
+    ? `\n\nUse this as safe wording only. Add ${joinEnglish(proofNeeded.slice(0, 4))} only if the resume can prove it.`
+    : "";
+
+  return {
+    summaryHeading: diagnosis.category === "medium_match" ? "Safe ATS wording" : "ATS-friendly summary",
+    bulletHeading: diagnosis.category === "medium_match" ? "Safe resume bullets" : "Copy-ready resume bullets",
+    summary: `${wording.summary}${mediumNote}`,
+    bullets: wording.bullets
+  };
 }
 
 function analyzeResume(resumeText, jobText, jobType) {
-  const mismatch = detectJobTypeMismatch(jobText, jobType);
-  const keywords = extractImportantKeywords(jobText, jobType);
-  const evaluated = keywords.map(keyword => {
-    const match = getKeywordMatch(keyword.term, resumeText);
-    return { ...keyword, ...match };
+  const selected = getSelectedJobType(jobType);
+  const selectedFamily = selected.family;
+  const jobFamily = detectFamily(jobText);
+  const resumeFamily = detectFamily(resumeText);
+  const targetFamily = jobFamily.family !== "general" ? jobFamily.family : selectedFamily;
+  const keywordData = analyzeKeywords(resumeText, jobText, targetFamily === "general" ? selectedFamily : targetFamily);
+  const evidenceFamily = selectedFamily === "general" ? targetFamily : selectedFamily;
+  const evidenceTerms = getProofTerms(resumeText, evidenceFamily).filter(termName => {
+    const activeNames = keywordData.activeTerms.map(item => item.term);
+    return activeNames.includes(termName) || keywordData.score >= 60;
   });
-
-  const exactMatched = evaluated.filter(item => item.status === "exact");
-  const relatedMatched = evaluated.filter(item => item.status === "related");
-  const weakMatched = evaluated.filter(item => item.status === "weak");
-  const matched = evaluated.filter(item => item.status !== "missing");
-  const missing = evaluated.filter(item => item.status === "missing");
-  const criticalMissing = missing.filter(item => item.importance === "high");
-  const helpfulMissing = missing.filter(item => item.importance === "medium" || item.importance === "helpful");
-  const softMissing = missing.filter(item => item.importance === "soft");
-
-  const sectionChecks = [
-    { name: "contact info", ok: /@|\d{3}[-.)\s]?\d{3}[-.\s]?\d{4}/i.test(resumeText) },
-    { name: "summary", ok: /summary|profile|objective/i.test(resumeText) },
-    { name: "skills", ok: /skills|certifications/i.test(resumeText) },
-    { name: "experience", ok: /experience|work history|employment/i.test(resumeText) },
-    { name: "education", ok: /education|school|ged|diploma|degree/i.test(resumeText) }
-  ];
-
-  const sectionScore = Math.round((sectionChecks.filter(s => s.ok).length / sectionChecks.length) * 20);
-  const totalWeight = evaluated.reduce((total, item) => total + item.weight, 0);
-  const earnedWeight = evaluated.reduce((total, item) => total + (item.weight * (matchCredits[item.status] || 0)), 0);
-  const keywordScore = totalWeight ? Math.round((earnedWeight / totalWeight) * 72) : 0;
-  const lengthBonus = resumeText.length > 800 && resumeText.length < 5000 ? 8 : resumeText.length >= 5000 ? 4 : 0;
-  const score = Math.min(100, keywordScore + sectionScore + lengthBonus);
-  const weightedCoverage = totalWeight ? Math.round((earnedWeight / totalWeight) * 100) : 0;
-
-  const baseAnalysis = {
-    keywords,
-    evaluated,
-    exactMatched,
-    relatedMatched,
-    weakMatched,
-    matched,
-    missing,
-    criticalMissing,
-    helpfulMissing,
-    softMissing,
-    sectionChecks,
-    weightedCoverage,
-    score,
-    mismatch
-  };
-
-  const evidence = evaluateEvidenceForJobType(resumeText, jobType);
-  const diagnosis = buildDiagnosis(resumeText, jobText, jobType, baseAnalysis, evidence, mismatch);
+  const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms });
+  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText });
+  const displayScore = diagnosis.category === "wrong_job_type" ? keywordData.score : keywordData.score;
 
   return {
-    ...baseAnalysis,
-    evidenceCoverage: evidence.coverage,
-    directHighMatches: evidence.directHighMatches,
-    proofMatches: evidence.proofMatches,
-    proofSatisfied: evidence.proofSatisfied,
-    requiredTerms: evidence.requiredTerms,
-    requiredMinimum: evidence.requiredMinimum,
+    selected,
+    selectedFamily,
+    jobFamily,
+    resumeFamily,
+    keywordData,
+    evidenceTerms,
     diagnosis,
-    directionNote: buildDirectionNotes(jobType, { ...baseAnalysis, ...evidence, diagnosis, mismatch })
+    output,
+    score: displayScore
   };
 }
 
-function getScoreMessage(score, analysis = null) {
-  if (analysis?.diagnosis?.title) return `${analysis.diagnosis.title}. ${analysis.diagnosis.message}`;
-  if (score >= 85) return "Strong match. Clean up the red flags, then apply.";
-  if (score >= 70) return "Good base. Add the high-priority missing keywords naturally before applying.";
-  if (score >= 50) return "Decent start, but the resume may still look too generic for this job post.";
-  return "Weak match. The job post and resume are not speaking the same language yet.";
+function chipLabel(item) {
+  return typeof item === "string" ? item : item.term;
 }
 
-function buildRedFlags(resumeText, jobText, analysis) {
-  const flags = [];
-  const lowerResume = resumeText.toLowerCase();
-
-  if (analysis.diagnosis?.type === "wrong_job_type") {
-    flags.push(`<strong>Possible wrong job type:</strong> this job post looks closer to ${analysis.mismatch?.suggestedLabel || "another role"}. Switch the job type and scan again before editing the resume.`);
-  }
-  if (analysis.diagnosis?.type === "weak_evidence") {
-    flags.push("<strong>Do not force this match:</strong> the resume does not show enough direct proof for this job type yet.");
-  }
-  if (analysis.diagnosis?.type === "wording_gap") {
-    flags.push("<strong>Wording gap:</strong> the experience looks related, but the ATS wording needs to be clearer.");
-  }
-
-  if (analysis.criticalMissing.length >= 5) {
-    flags.push("<strong>High-priority keywords missing:</strong> the resume is missing several important words or skills from the job post.");
-  }
-  if (analysis.missing.length > 14) {
-    flags.push("<strong>Too many missing keywords:</strong> the resume may not match the job post closely enough.");
-  }
-  if (analysis.relatedMatched.length > analysis.exactMatched.length && analysis.relatedMatched.length > 3) {
-    flags.push("<strong>Related matches found:</strong> your resume shows similar experience, but adding the employer's exact wording could make it stronger.");
-  }
-  if (analysis.weakMatched?.length >= 3) {
-    flags.push("<strong>Weak matches found:</strong> the resume has partial proof for some skills, but the wording is not clear enough yet.");
-  }
-  if (analysis.weightedCoverage < 55) {
-    flags.push("<strong>Low keyword confidence:</strong> the strongest job-specific skills are not showing clearly enough in the resume.");
-  }
-  if (!/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|20\d{2}|present)\b/i.test(resumeText)) {
-    flags.push("<strong>Missing dates:</strong> add month/year dates so the work history looks complete.");
-  }
-  if ((lowerResume.match(/present/g) || []).length > 1) {
-    flags.push("<strong>Multiple current jobs:</strong> more than one 'Present' role can look like overlapping dates.");
-  }
-  if (!/\d|percent|%|hour|shift|positions|equipment|machines/i.test(resumeText)) {
-    flags.push("<strong>No measurable proof:</strong> add numbers like equipment count, shift length, production rate, or years of experience.");
-  }
-  if (/fast[-\s]?paced/i.test(jobText) && !/fast[-\s]?paced|high volume|production flow|busy environment/i.test(resumeText)) {
-    flags.push("<strong>Fast-paced missing:</strong> the job asks for fast-paced work, but the resume does not clearly show it.");
-  }
-  if (/safety/i.test(jobText) && !/safety|safe|PPE|procedures/i.test(resumeText)) {
-    flags.push("<strong>Safety missing:</strong> safety is in the job post, so it should be visible in your resume.");
-  }
-  if (resumeText.length < 700) {
-    flags.push("<strong>Resume too thin:</strong> add stronger bullets under each job so the system has more proof to read.");
-  }
-
-  analysis.sectionChecks.filter(s => !s.ok).forEach(s => {
-    flags.push(`<strong>Missing section:</strong> add a clear ${s.name} section.`);
-  });
-
-  if (!flags.length) {
-    flags.push("No major red flags found. Review the wording and make sure every bullet is honest.");
-  }
-
-  return flags;
-}
-
-function getJobFamily(jobType) {
-  const familyMap = {
-    general: "general",
-    customer_service_representative: "customer_service",
-    data_entry_clerk: "dataentry",
-    administrative_assistant: "admin",
-    receptionist: "admin",
-    call_center_representative: "call_center",
-    remote_customer_support_representative: "remote",
-    office_assistant: "admin",
-    sales_representative: "sales_retail",
-    retail_associate: "sales_retail",
-    cashier: "sales_retail",
-    stocker: "warehouse",
-    warehouse_associate: "warehouse",
-    package_handler: "warehouse",
-    material_handler: "warehouse",
-    forklift_operator: "warehouse",
-    delivery_driver: "delivery",
-    truck_driver: "cdl",
-    machine_operator: "manufacturing",
-    production_worker: "manufacturing",
-    assembly_worker: "manufacturing",
-    maintenance_technician: "maintenance",
-    apartment_maintenance_technician: "apartment",
-    electrician: "electrician",
-    welder: "welding",
-    diesel_mechanic: "diesel",
-    construction_laborer: "construction",
-    carpenter: "construction",
-    security_officer: "security",
-    janitor: "janitorial",
-    housekeeper: "janitorial",
-    hotel_front_desk_agent: "hospitality",
-    server: "food_service",
-    cook: "food_service",
-    certified_nursing_assistant: "healthcare_support",
-    medical_assistant: "healthcare_support",
-    patient_care_technician: "healthcare_support",
-    home_health_aide: "healthcare_support",
-    phlebotomist: "healthcare_support",
-    pharmacy_technician: "healthcare_support",
-    dental_assistant: "healthcare_support",
-    licensed_practical_nurse: "healthcare_support",
-    registered_nurse: "healthcare_support",
-    medical_billing_specialist: "healthcare_support",
-    medical_coding_specialist: "healthcare_support",
-    teacher_assistant: "apprenticeship",
-    substitute_teacher: "apprenticeship",
-    bookkeeper: "admin",
-    human_resources_assistant: "admin",
-    it_help_desk_technician: "it_helpdesk",
-    cybersecurity_analyst: "it_helpdesk"
-  };
-
-  return familyMap[jobType] || "general";
-}
-
-
-const jobTypeLabels = {
-  general: "General / Any Job",
-  customer_service_representative: "Customer Service Representative",
-  data_entry_clerk: "Data Entry Clerk",
-  administrative_assistant: "Administrative Assistant",
-  receptionist: "Receptionist",
-  call_center_representative: "Call Center Representative",
-  remote_customer_support_representative: "Remote Customer Support Representative",
-  office_assistant: "Office Assistant",
-  sales_representative: "Sales Representative",
-  retail_associate: "Retail Associate",
-  cashier: "Cashier",
-  stocker: "Stocker",
-  warehouse_associate: "Warehouse Associate",
-  package_handler: "Package Handler",
-  material_handler: "Material Handler",
-  forklift_operator: "Forklift Operator",
-  delivery_driver: "Delivery Driver",
-  truck_driver: "Truck Driver",
-  machine_operator: "Machine Operator",
-  production_worker: "Production Worker",
-  assembly_worker: "Assembly Worker",
-  maintenance_technician: "Maintenance Technician",
-  apartment_maintenance_technician: "Apartment Maintenance Technician",
-  electrician: "Electrician",
-  welder: "Welder",
-  diesel_mechanic: "Diesel Mechanic",
-  construction_laborer: "Construction Laborer",
-  carpenter: "Carpenter",
-  security_officer: "Security Officer",
-  janitor: "Janitor",
-  housekeeper: "Housekeeper",
-  hotel_front_desk_agent: "Hotel Front Desk Agent",
-  server: "Server",
-  cook: "Cook",
-  certified_nursing_assistant: "Certified Nursing Assistant",
-  medical_assistant: "Medical Assistant",
-  patient_care_technician: "Patient Care Technician",
-  home_health_aide: "Home Health Aide",
-  phlebotomist: "Phlebotomist",
-  pharmacy_technician: "Pharmacy Technician",
-  dental_assistant: "Dental Assistant",
-  licensed_practical_nurse: "Licensed Practical Nurse",
-  registered_nurse: "Registered Nurse",
-  medical_billing_specialist: "Medical Billing Specialist",
-  medical_coding_specialist: "Medical Coding Specialist",
-  teacher_assistant: "Teacher Assistant",
-  substitute_teacher: "Substitute Teacher",
-  bookkeeper: "Bookkeeper",
-  human_resources_assistant: "Human Resources Assistant",
-  it_help_desk_technician: "IT Help Desk Technician",
-  cybersecurity_analyst: "Cybersecurity Analyst"
-};
-
-const familyDisplayNames = {
-  general: "general work",
-  warehouse: "warehouse and material handling",
-  manufacturing: "manufacturing and machine operation",
-  customer_service: "customer service",
-  call_center: "call center support",
-  remote: "remote customer support",
-  dataentry: "data entry and clerical work",
-  admin: "administrative and office support",
-  sales_retail: "sales and retail",
-  delivery: "delivery and route work",
-  cdl: "CDL and truck driving",
-  maintenance: "maintenance and repair",
-  apartment: "apartment maintenance",
-  electrician: "electrical helper work",
-  welding: "welding and fabrication",
-  diesel: "diesel/mechanical repair",
-  construction: "construction and carpentry",
-  security: "security work",
-  janitorial: "cleaning and custodial work",
-  hospitality: "hospitality and guest service",
-  food_service: "food service",
-  healthcare_support: "healthcare support",
-  it_helpdesk: "IT help desk and technical support",
-  apprenticeship: "training and apprenticeship roles"
-};
-
-const requiredProofRules = {
-  healthcare_support: { minimum: 1, terms: ["CNA", "certified nursing assistant", "patient care", "patients", "residents", "ADLs", "vital signs", "caregiver", "home health", "HIPAA", "infection control", "clinical", "phlebotomy", "EKG", "blood draw", "medical assistant"] },
-  cdl: { minimum: 1, terms: ["CDL", "DOT", "truck driver", "pre-trip", "post-trip", "safe driving", "route", "delivery", "TWIC", "hours of service"] },
-  electrician: { minimum: 1, terms: ["electrical", "wiring", "outlets", "switches", "panels", "conduit", "fixtures", "installation", "troubleshooting"] },
-  welding: { minimum: 1, terms: ["welding", "welder", "fabrication", "MIG", "TIG", "grinding", "cutting", "fitting", "blueprint"] },
-  diesel: { minimum: 1, terms: ["diesel", "mechanic", "diagnostics", "repair", "preventive maintenance", "brakes", "hydraulics", "heavy equipment", "inspection"] },
-  it_helpdesk: { minimum: 1, terms: ["IT", "technical support", "help desk", "troubleshooting", "tickets", "hardware", "software", "Windows", "password reset", "cybersecurity", "network"] }
-};
-
-function labelForJobType(jobType) {
-  return jobTypeLabels[jobType] || String(jobType || "General").replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
-}
-
-function displayFamily(jobTypeOrFamily) {
-  const family = familyKeywordRules[jobTypeOrFamily] ? jobTypeOrFamily : getJobFamily(jobTypeOrFamily);
-  return familyDisplayNames[family] || "this type of work";
-}
-
-function proofTermsForJobType(jobType) {
-  const family = getJobFamily(jobType);
-  const direct = jobTypeKeywordRules[jobType] || {};
-  const familyRules = familyKeywordRules[family] || familyKeywordRules.general;
-  const required = requiredProofRules[jobType] || requiredProofRules[family] || null;
-  return uniqueList([...(required?.terms || []), ...(direct.high || []), ...(familyRules.high || [])]);
-}
-
-function evaluateEvidenceForJobType(text, jobType) {
-  const rules = keywordRulesFor(jobType);
-  const required = requiredProofRules[jobType] || requiredProofRules[getJobFamily(jobType)] || null;
-  const terms = uniqueList([...(rules.high || []), ...(rules.medium || [])]);
-  const evaluated = terms.map(term => {
-    const match = getKeywordMatch(term, text);
-    const importance = (rules.high || []).some(item => normalize(item) === normalize(term)) ? "high" : "medium";
-    const weight = keywordWeight(importance);
-    return { term, importance, weight, ...match };
-  });
-  const totalWeight = evaluated.reduce((total, item) => total + item.weight, 0);
-  const earnedWeight = evaluated.reduce((total, item) => total + (item.weight * (matchCredits[item.status] || 0)), 0);
-  const coverage = totalWeight ? Math.round((earnedWeight / totalWeight) * 100) : 0;
-  const directHighMatches = evaluated.filter(item => item.importance === "high" && (item.status === "exact" || item.status === "related"));
-  const proofTerms = required?.terms || [];
-  const proofMatches = proofTerms
-    .map(term => ({ term, ...getKeywordMatch(term, text) }))
-    .filter(item => item.status === "exact" || item.status === "related");
-  const proofSatisfied = !required || proofMatches.length >= (required.minimum || 1);
-
-  return {
-    coverage,
-    evaluated,
-    directHighMatches,
-    proofMatches,
-    proofSatisfied,
-    requiredTerms: proofTerms,
-    requiredMinimum: required?.minimum || 0
-  };
-}
-
-function scoreJobTypeAgainstText(text, jobType) {
-  const rules = keywordRulesFor(jobType);
-  const preset = presetKeywords[jobType] || [];
-  const terms = uniqueList([...(rules.high || []), ...(rules.medium || []), ...preset]);
-  return terms.reduce((score, term) => {
-    const match = getKeywordMatch(term, text);
-    if (match.status === "exact") return score + 5;
-    if (match.status === "related") return score + 4;
-    if (match.status === "weak") return score + 1.5;
-    return score;
-  }, 0);
-}
-
-function detectJobTypeMismatch(jobText, selectedJobType) {
-  if (!jobText || selectedJobType === "general") return null;
-
-  const candidates = Object.keys(presetKeywords)
-    .filter(jobType => jobType !== "general")
-    .map(jobType => ({ jobType, score: scoreJobTypeAgainstText(jobText, jobType) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
-
-  const selectedScore = scoreJobTypeAgainstText(jobText, selectedJobType);
-  const best = candidates[0];
-  if (!best || best.jobType === selectedJobType) return null;
-
-  const selectedFamily = getJobFamily(selectedJobType);
-  const bestFamily = getJobFamily(best.jobType);
-  const clearlyDifferent = selectedFamily !== bestFamily;
-  const clearlyStronger = best.score >= Math.max(14, selectedScore + 8, selectedScore * 1.45);
-
-  if (!clearlyDifferent || !clearlyStronger) return null;
-
-  return {
-    selectedJobType,
-    selectedLabel: labelForJobType(selectedJobType),
-    selectedScore: Math.round(selectedScore),
-    suggestedJobType: best.jobType,
-    suggestedLabel: labelForJobType(best.jobType),
-    suggestedFamily: bestFamily,
-    suggestedScore: Math.round(best.score),
-    alternatives: candidates.slice(0, 3).map(item => ({ ...item, label: labelForJobType(item.jobType), score: Math.round(item.score) }))
-  };
-}
-
-function provenSkillTerms(analysis, limit = 8) {
-  const items = [
-    ...(analysis.exactMatched || []),
-    ...(analysis.relatedMatched || []),
-    ...(analysis.weakMatched || [])
-  ];
-  return uniqueList(items
-    .filter(item => item.status !== "missing")
-    .sort((a, b) => {
-      if ((b.weight || 0) !== (a.weight || 0)) return (b.weight || 0) - (a.weight || 0);
-      return (b.confidence || 0) - (a.confidence || 0);
-    })
-    .map(item => item.term)
-  ).slice(0, limit);
-}
-
-function transferableTermsFromResume(analysis) {
-  const safe = provenSkillTerms(analysis, 10);
-  const transferable = safe.filter(term => /safety|communication|teamwork|documentation|customer service|quality|accuracy|reliable|attendance|problem solving|tools|training|fast-paced|production|cleaning|organization|attention/i.test(term));
-  return transferable.length ? transferable.slice(0, 6) : safe.slice(0, 6);
-}
-
-function buildDiagnosis(resumeText, jobText, jobType, analysis, evidence, mismatch) {
-  const matchedHigh = evidence.directHighMatches.length;
-  const weighted = analysis.weightedCoverage;
-  const evidenceCoverage = evidence.coverage;
-  const selectedLabel = labelForJobType(jobType);
-  const suggestedText = mismatch ? ` This job post looks closer to ${mismatch.suggestedLabel}.` : "";
-
-  if (mismatch) {
-    return {
-      type: "wrong_job_type",
-      title: "Possible Wrong Job Type Selected",
-      message: `The job description may not match the job type you selected. You picked ${mismatch.selectedLabel}, but the job post looks closer to ${mismatch.suggestedLabel}. Switch the job type for a more accurate report, or keep going if you selected it on purpose.`,
-      canGenerateJobSpecific: false,
-      useTransferableOnly: true,
-      suggestedLabel: mismatch.suggestedLabel
-    };
-  }
-
-  if (!evidence.proofSatisfied) {
-    return {
-      type: "weak_evidence",
-      title: "Weak Evidence for This Job Type",
-      message: `Your resume does not show enough direct proof for ${selectedLabel} yet. To avoid adding false experience, we will not generate job-specific wording for this role. Add real training, certification, or experience only if it is true.`,
-      canGenerateJobSpecific: false,
-      useTransferableOnly: false
-    };
-  }
-
-  if (weighted < 30 && evidenceCoverage < 35) {
-    return {
-      type: "weak_evidence",
-      title: "Weak Match",
-      message: `Your resume and this job post are not close enough yet. We do not want to force a bad match, so use the direction notes before trying to rewrite this resume.${suggestedText}`,
-      canGenerateJobSpecific: false,
-      useTransferableOnly: false
-    };
-  }
-
-  if (weighted < 50 && evidenceCoverage < 55) {
-    return {
-      type: "transferable",
-      title: "Transferable Match",
-      message: "Your resume shows some useful experience, but not enough direct proof for this job type yet. Starter wording will stay general and only use transferable skills already found in your resume.",
-      canGenerateJobSpecific: false,
-      useTransferableOnly: true
-    };
-  }
-
-  if (weighted < 58 && (evidenceCoverage >= 45 || matchedHigh >= 2)) {
-    return {
-      type: "wording_gap",
-      title: "Wording Gap",
-      message: "Your resume shows related proof for this type of job, but the wording or resume structure is not strong enough yet. We will translate only the experience your resume already proves into more ATS-friendly wording.",
-      canGenerateJobSpecific: true,
-      useTransferableOnly: false
-    };
-  }
-
-  if (analysis.score >= 85 && matchedHigh >= 2) {
-    return {
-      type: "strong_match",
-      title: "Strong Match",
-      message: "Your resume already lines up well with this job. Starter wording below is still limited to what your resume already proves.",
-      canGenerateJobSpecific: true,
-      useTransferableOnly: false
-    };
-  }
-
-  if (analysis.score >= 70 || weighted >= 60) {
-    return {
-      type: "good_match",
-      title: "Good Match",
-      message: "Your resume is a good match for this job. A few wording gaps may still be hurting the ATS match, so the starter wording stays honest and based only on detected proof.",
-      canGenerateJobSpecific: true,
-      useTransferableOnly: false
-    };
-  }
-
-  return {
-    type: "transferable",
-    title: "Transferable Match",
-    message: "Your resume has some overlap with this job, but the direct proof is still limited. Use transferable wording only and add job-specific proof only if it is true.",
-    canGenerateJobSpecific: false,
-    useTransferableOnly: true
-  };
-}
-
-function buildDirectionNotes(jobType, analysis) {
-  const proofNeeded = (analysis.requiredTerms || proofTermsForJobType(jobType)).slice(0, 8).join(", ");
-  const suggestedRoles = analysis.mismatch?.alternatives?.map(item => item.label).join(", ");
-  const missing = (analysis.criticalMissing || []).slice(0, 5).map(item => item.term).join(", ");
-
-  if (analysis.diagnosis?.type === "wrong_job_type") {
-    return `Right direction: this job post appears closer to ${analysis.mismatch.suggestedLabel}. Change the job type and run the scan again for a cleaner report. Other close options: ${suggestedRoles || analysis.mismatch.suggestedLabel}.`;
-  }
-
-  if (analysis.diagnosis?.type === "weak_evidence") {
-    return `Right direction: do not force this resume into ${labelForJobType(jobType)} yet. Add real proof first if you have it${proofNeeded ? `, such as ${proofNeeded}` : ""}. If not, apply to roles closer to what your resume already shows.`;
-  }
-
-  if (analysis.diagnosis?.type === "transferable") {
-    return `Right direction: use transferable skills only for now. Add direct job proof only if it is true${proofNeeded ? `, especially ${proofNeeded}` : ""}.`;
-  }
-
-  if (analysis.diagnosis?.type === "wording_gap") {
-    return `Right direction: your experience looks related, but the ATS wording is off. Add exact job-post wording only where your resume already proves it${missing ? `, starting with ${missing}` : ""}.`;
-  }
-
-  return `Right direction: keep the resume honest and tighten the ATS wording. Missing keywords are suggestions only. Add them only if they are true${missing ? `, especially ${missing}` : ""}.`;
-}
-
-function buildStarterSummary(jobType, analysis) {
-  const safeSkills = provenSkillTerms(analysis, 5);
-  const transferable = transferableTermsFromResume(analysis);
-  const family = getJobFamily(jobType);
-  const skillText = safeSkills.length ? safeSkills.join(", ") : "reliability, communication, safety, and task completion";
-  const transferableText = transferable.length ? transferable.join(", ") : "following instructions, completing assigned work, and learning new tasks";
-  const familyName = displayFamily(family);
-
-  if (analysis.diagnosis?.type === "weak_evidence") {
-    return `Your resume does not show enough direct proof for ${labelForJobType(jobType)} yet, so this tool will not create job-specific resume wording from thin air. Use this scan to identify what real experience, training, or certification you would need before applying.`;
-  }
-
-  if (analysis.diagnosis?.type === "wrong_job_type") {
-    return `The selected job type may be wrong for this job post, so this starter summary stays general. Your resume currently shows transferable strengths such as ${transferableText}, but you should switch the job type to ${analysis.mismatch?.suggestedLabel || "the closer role"} for a more accurate report.`;
-  }
-
-  if (analysis.diagnosis?.type === "transferable") {
-    return `Reliable candidate with transferable experience including ${transferableText}. Able to follow instructions, support daily operations, communicate clearly, and learn new processes without adding experience the resume does not prove.`;
-  }
-
-  if (analysis.diagnosis?.type === "wording_gap") {
-    return `Reliable candidate with real experience related to ${familyName}, including ${skillText}. Able to present proven experience in more ATS-friendly wording while keeping the resume honest and based on work already shown.`;
-  }
-
-  return `Reliable candidate with experience related to ${familyName}, including ${skillText}. Able to follow instructions, support daily goals, and apply proven skills in a way ATS systems can clearly read.`;
-}
-
-function buildStarterBullets(jobType, analysis) {
-  const safeSkills = provenSkillTerms(analysis, 6);
-  const transferable = transferableTermsFromResume(analysis);
-  const family = getJobFamily(jobType);
-  const primary = safeSkills[0] || transferable[0] || "assigned tasks";
-  const secondary = safeSkills[1] || transferable[1] || "workplace procedures";
-  const third = safeSkills[2] || transferable[2] || "team support";
-
-  if (analysis.diagnosis?.type === "weak_evidence") {
-    const proof = (analysis.requiredTerms || proofTermsForJobType(jobType)).slice(0, 5).join(", ");
-    return [
-      `Do not add ${labelForJobType(jobType)} experience unless the resume can honestly prove it.`,
-      proof ? `Add real proof first if you have it, such as ${proof}.` : "Add real job-specific proof first if you have it.",
-      "Apply to roles closer to the experience already shown, or get the needed training before using job-specific wording."
-    ].map(item => `• ${item}`).join("\n");
-  }
-
-  if (analysis.diagnosis?.type === "wrong_job_type") {
-    return [
-      `Switch the job type to ${analysis.mismatch?.suggestedLabel || "the closer role"} and run the scan again for a more accurate report.`,
-      `Keep only proven resume skills such as ${transferable.slice(0, 3).join(", ") || "reliability, safety, and communication"}.`,
-      "Do not force this resume into the wrong job category just to raise the score."
-    ].map(item => `• ${item}`).join("\n");
-  }
-
-  if (analysis.diagnosis?.type === "transferable") {
-    return [
-      `Used ${primary} and ${secondary} to complete assigned work while following workplace expectations.`,
-      `Applied ${third}, communication, and attention to detail to support daily operations.`,
-      "Worked in changing environments while staying reliable, organized, and focused on honest transferable strengths."
-    ].map(item => `• ${item}`).join("\n");
-  }
-
-  const familyBullets = {
-    manufacturing: [
-      `Operated, monitored, or supported production work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "machine operation, safety, and quality checks"}.`,
-      `Followed safety, quality, and production procedures while completing tasks related to ${primary} and ${secondary}.`,
-      `Kept work moving in a fast-paced environment by using documented experience with ${safeSkills.slice(2, 5).join(", ") || "equipment, materials, and teamwork"}.`
-    ],
-    warehouse: [
-      `Supported warehouse or material handling work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "loading, unloading, and safety"}.`,
-      `Followed instructions and safety procedures while handling tasks related to ${primary} and ${secondary}.`,
-      `Maintained accuracy, reliability, and teamwork while supporting daily warehouse operations.`
-    ],
-    maintenance: [
-      `Supported maintenance or repair work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "tools, troubleshooting, and repairs"}.`,
-      `Completed assigned tasks while following safety procedures, work instructions, and quality expectations.`,
-      `Used hands-on experience with ${primary} and ${secondary} to help solve problems and keep work moving.`
-    ],
-    apartment: [
-      `Supported property or apartment maintenance work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "repairs, tools, and customer service"}.`,
-      `Completed assigned repair or turnover tasks while following safety, cleanliness, and communication expectations.`,
-      `Used hands-on experience with ${primary} and ${secondary} to support daily maintenance needs.`
-    ],
-    customer_service: [
-      `Helped customers or team members using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "communication, problem solving, and documentation"}.`,
-      `Handled questions, issues, or assigned tasks with professionalism, patience, and attention to detail.`,
-      `Used ${primary} and ${secondary} to support service goals while keeping communication clear.`
-    ],
-    healthcare_support: [
-      `Supported healthcare-related work using only proven resume skills such as ${safeSkills.slice(0, 3).join(", ") || "patient care, documentation, and safety"}.`,
-      `Followed safety, documentation, and privacy expectations while completing assigned care-support tasks.`,
-      `Communicated clearly and stayed attentive to patient, resident, or team needs shown in the resume.`
-    ],
-    security: [
-      `Supported safety or security work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "observation, documentation, and professionalism"}.`,
-      `Followed site procedures while communicating clearly and documenting issues accurately.`,
-      `Maintained professionalism, awareness, and reliability during assigned security responsibilities.`
-    ],
-    it_helpdesk: [
-      `Supported technical or user-facing work using proven skills such as ${safeSkills.slice(0, 3).join(", ") || "troubleshooting, documentation, and customer service"}.`,
-      `Followed step-by-step procedures to document issues, communicate clearly, and support problem solving.`,
-      `Used ${primary} and ${secondary} to help users, teams, or systems stay productive.`
-    ]
-  };
-
-  const bullets = familyBullets[family] || [
-    `Used proven resume skills such as ${safeSkills.slice(0, 3).join(", ") || "reliability, communication, and safety"} to complete assigned work.`,
-    `Followed instructions, workplace procedures, and daily expectations while supporting team goals.`,
-    `Stayed dependable, organized, and focused on accurate work in situations related to ${primary} and ${secondary}.`
-  ];
-
-  return bullets.slice(0, 3).map(item => `• ${item}`).join("\n");
-}
-
-function buildSummary(jobType, analysis) {
-  return buildStarterSummary(jobType, analysis);
-}
-
-function buildBullets(jobType, analysis) {
-  return buildStarterBullets(jobType, analysis);
-}
-
-
-function keywordDisplay(item) {
-  if (typeof item === "string") return item;
-  if (item.status === "related") return `${item.term} ≈ ${item.matchedBy}`;
-  if (item.status === "weak") return `${item.term} ~ ${item.matchedBy}`;
-  return item.term;
-}
-
-function keywordDetails(item) {
+function chipTitle(item) {
   if (typeof item === "string") return "";
-  const importanceLabel = item.importance === "high" ? "High priority" : item.importance === "medium" ? "Medium priority" : item.importance === "soft" ? "Soft skill" : "Helpful";
-  const matchLabel = item.status === "exact" ? "Exact match" : item.status === "related" ? `Related match: ${item.matchedBy}` : item.status === "weak" ? `Weak/partial match: ${item.matchedBy}` : "Missing";
-  return `${importanceLabel} • ${matchLabel} • Confidence: ${item.confidence || 0}%`;
+  const priority = item.priority === "high" ? "High priority" : item.priority === "medium" ? "Helpful" : "Soft/supporting";
+  return `${priority} • ${item.status === "missing" ? "Missing" : "Found in resume"}`;
 }
 
-function renderKeywordGroup(container, title, items = [], note = "") {
-  if (!container) return;
-  items = Array.isArray(items) ? items : [];
+function renderKeywordGroup(container, title, items, note) {
   const group = document.createElement("div");
   group.style.width = "100%";
   group.style.marginBottom = "16px";
@@ -1383,19 +994,16 @@ function renderKeywordGroup(container, title, items = [], note = "") {
   chips.style.flexWrap = "wrap";
   chips.style.gap = "10px";
 
-  const list = items.length ? items : ["Nothing found here"];
+  const list = items && items.length ? items : ["Nothing found here"];
   list.slice(0, 18).forEach(item => {
     const chip = document.createElement("span");
     chip.className = "chip";
-    chip.textContent = keywordDisplay(item);
-    chip.title = keywordDetails(item);
-    if (item?.importance === "high" && item?.status === "missing") {
+    chip.textContent = chipLabel(item);
+    chip.title = chipTitle(item);
+    if (item && item.priority === "high" && item.status === "missing") {
       chip.style.borderColor = "rgba(255, 92, 122, 0.45)";
       chip.style.color = "#ffc2cc";
       chip.style.background = "rgba(255, 92, 122, 0.12)";
-    }
-    if (item?.status === "weak") {
-      chip.style.opacity = "0.86";
     }
     chips.appendChild(chip);
   });
@@ -1406,83 +1014,91 @@ function renderKeywordGroup(container, title, items = [], note = "") {
 
 function renderDiagnosis(container, analysis) {
   if (!container) return;
-  container.innerHTML = "";
-
-  const title = document.createElement("h4");
-  title.textContent = analysis.diagnosis?.title || "Resume Direction";
-  title.style.margin = "0 0 8px";
-  title.style.color = "#f4f7fb";
-  container.appendChild(title);
-
-  const message = document.createElement("p");
-  message.textContent = analysis.diagnosis?.message || "Use this report to improve ATS wording without adding anything you have not actually done.";
-  message.style.margin = "0 0 10px";
-  message.style.color = "#d6dbe6";
-  message.style.lineHeight = "1.55";
-  container.appendChild(message);
-
-  const proof = document.createElement("p");
-  const proofMatches = (analysis.proofMatches || []).map(item => item.term).slice(0, 6);
-  proof.textContent = proofMatches.length
-    ? `Resume proof found: ${proofMatches.join(", ")}.`
-    : "Resume proof found: limited direct proof for this job type.";
-  proof.style.margin = "0 0 10px";
-  proof.style.color = "#a7b0bf";
-  proof.style.lineHeight = "1.45";
-  container.appendChild(proof);
-
-  const direction = document.createElement("p");
-  direction.textContent = analysis.directionNote || "Missing keywords are suggestions only. Add them only if they are true.";
-  direction.style.margin = "0";
-  direction.style.color = "#a7ffce";
-  direction.style.lineHeight = "1.45";
-  container.appendChild(direction);
+  const proof = analysis.evidenceTerms.length
+    ? `Resume proof found: ${joinEnglish(analysis.evidenceTerms.slice(0, 7))}.`
+    : "Resume proof found: limited direct proof for the selected job type.";
+  const jobRead = analysis.jobFamily.family !== "general"
+    ? `Job post reads closest to: ${FAMILY_LABELS[analysis.jobFamily.family]}.`
+    : "Job post category: not clear enough to lock onto one field.";
+  container.innerHTML = `
+    <h4 style="margin:0 0 8px;color:#f4f7fb">${escapeHTML(analysis.diagnosis.title)}</h4>
+    <p style="margin:0 0 10px;color:#d6dbe6;line-height:1.55">${escapeHTML(analysis.diagnosis.message)}</p>
+    <p style="margin:0 0 10px;color:#a7b0bf;line-height:1.45">${escapeHTML(jobRead)}</p>
+    <p style="margin:0 0 10px;color:#a7b0bf;line-height:1.45">${escapeHTML(proof)}</p>
+    <p style="margin:0;color:#a7ffce;line-height:1.45">${escapeHTML(analysis.diagnosis.direction)}</p>
+  `;
 }
 
 function renderMissingKeywords(container, analysis) {
+  if (!container) return;
   container.innerHTML = "";
   const summary = document.createElement("p");
-  summary.textContent = `Smart match: ${analysis.weightedCoverage}% weighted keyword coverage. High-priority skills count more than soft skills.`;
+  summary.textContent = `Smart match: ${analysis.keywordData.score}% weighted job-skill coverage. Generic words are ignored; only useful job skills are shown.`;
   summary.style.margin = "0 0 14px";
   summary.style.color = "#a7b0bf";
   summary.style.lineHeight = "1.45";
   container.appendChild(summary);
 
-  renderKeywordGroup(
-    container,
-    "High Priority Missing",
-    analysis.criticalMissing,
-    "These are the job-specific words most worth adding if they are true."
-  );
-  renderKeywordGroup(
-    container,
-    "Helpful Keywords to Add",
-    analysis.helpfulMissing,
-    "These can improve the match, but they do not matter as much as the high-priority skills."
-  );
-  renderKeywordGroup(
-    container,
-    "Soft Skills Missing",
-    analysis.softMissing,
-    "These only show up when the job post asks for them."
-  );
+  renderKeywordGroup(container, "High Priority Missing", analysis.keywordData.criticalMissing, "Add these only if your real experience, training, or certification proves them.");
+  renderKeywordGroup(container, "Helpful Keywords to Add", analysis.keywordData.helpfulMissing, "These can improve ATS wording when they are true.");
+  renderKeywordGroup(container, "Soft / Supporting Details Missing", analysis.keywordData.softMissing, "These matter less than hard job duties and certifications.");
 }
 
 function renderMatchedKeywords(container, analysis) {
+  if (!container) return;
   container.innerHTML = "";
-  renderKeywordGroup(container, "Exact Matches", analysis.exactMatched, "The resume already uses the employer's wording.");
-  renderKeywordGroup(container, "Related Matches", analysis.relatedMatched, "The resume says something close. Using the employer's exact wording may help.");
-  renderKeywordGroup(container, "Weak / Partial Matches", analysis.weakMatched, "The resume has partial proof, but the wording could be clearer.");
+  renderKeywordGroup(container, "Resume Proof Found", analysis.keywordData.exactMatched, "These job-post skills already appear in the resume or close wording.");
+}
+
+function buildRedFlags(resumeText, jobText, analysis) {
+  const flags = [];
+  if (analysis.diagnosis.category === "wrong_job_type") {
+    flags.push(`<strong>Wrong job type selected:</strong> switch the dropdown before copying any wording.`);
+  }
+  if (analysis.diagnosis.category === "weak_evidence") {
+    flags.push(`<strong>Weak evidence:</strong> this resume does not prove enough direct experience for this job-specific rewrite.`);
+  }
+  if (analysis.keywordData.criticalMissing.length) {
+    flags.push(`<strong>High-priority gap:</strong> ${escapeHTML(joinEnglish(analysis.keywordData.criticalMissing.map(item => item.term).slice(0, 5)))} ${analysis.keywordData.criticalMissing.length === 1 ? "is" : "are"} missing. Add only if true.`);
+  }
+  if (!/20\d{2}|19\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec/i.test(resumeText)) {
+    flags.push(`<strong>Missing dates:</strong> add month/year dates so the resume looks complete.`);
+  }
+  if (normalize(resumeText).split(" ").length < 75) {
+    flags.push(`<strong>Thin resume:</strong> add real job duties, tools, equipment, certifications, or measurable work details.`);
+  }
+  if (!flags.length) {
+    flags.push("No major red flags found from this scan.");
+  }
+  flags.push(`<strong>Truth rule:</strong> ATS-friendly wording only. Do not add duties, tools, certifications, or experience you have not done.`);
+  return flags;
+}
+
+function getScoreMessage(analysis) {
+  if (analysis.diagnosis.category === "wrong_job_type") {
+    return `${analysis.score}% keyword overlap, but the selected job type is wrong. Fix the dropdown before using the report.`;
+  }
+  if (analysis.diagnosis.category === "weak_evidence") {
+    return `${analysis.score}% match. Low proof means direction only, not a job-specific rewrite.`;
+  }
+  if (analysis.diagnosis.category === "medium_match") {
+    return `${analysis.score}% match. Fixable wording gap, but missing keywords must be true before adding them.`;
+  }
+  return `${analysis.score}% match. ${analysis.diagnosis.title}: the wording below is based on resume proof found in the scan.`;
+}
+
+function setRewriteHeadings(output) {
+  const summaryHeading = $("summaryHeading");
+  const bulletHeading = $("bulletHeading");
+  if (summaryHeading) summaryHeading.textContent = output.summaryHeading;
+  if (bulletHeading) bulletHeading.textContent = output.bulletHeading;
 }
 
 function analyzeAndRender() {
-  const resumeEl = document.getElementById("resumeText");
-  const jobEl = document.getElementById("jobText");
-  const jobTypeEl = document.getElementById("jobType");
-  const resultsEl = document.getElementById("results");
-  const rewriteEl = document.getElementById("rewrite");
-
-  if (!resumeEl || !jobEl || !jobTypeEl || !resultsEl || !rewriteEl) {
+  const resumeEl = $("resumeText");
+  const jobEl = $("jobText");
+  const jobTypeEl = $("jobType");
+  if (!resumeEl || !jobEl || !jobTypeEl) {
     alert("The resume checker is still loading. Refresh the page and try again.");
     return;
   }
@@ -1497,105 +1113,66 @@ function analyzeAndRender() {
   }
 
   const analysis = analyzeResume(resumeText, jobText, jobType);
+  const resultsEl = $("results");
+  const rewriteEl = $("rewrite");
+  if (resultsEl) resultsEl.hidden = false;
+  if (rewriteEl) rewriteEl.hidden = false;
 
-  resultsEl.hidden = false;
-  rewriteEl.hidden = false;
-  const scoreValue = document.getElementById("scoreValue");
-  const scoreMessage = document.getElementById("scoreMessage");
-  const scoreBar = document.getElementById("scoreBar");
-  if (scoreValue) scoreValue.textContent = analysis.score;
-  if (scoreMessage) scoreMessage.textContent = getScoreMessage(analysis.score, analysis);
-  if (scoreBar) scoreBar.style.width = `${analysis.score}%`;
+  if ($("scoreValue")) $("scoreValue").textContent = analysis.score;
+  if ($("scoreMessage")) $("scoreMessage").textContent = getScoreMessage(analysis);
+  if ($("scoreBar")) $("scoreBar").style.width = `${Math.max(5, analysis.score)}%`;
 
-  renderDiagnosis(document.getElementById("diagnosisOutput"), analysis);
-  renderMissingKeywords(document.getElementById("missingKeywords"), analysis);
-  renderMatchedKeywords(document.getElementById("matchedKeywords"), analysis);
+  renderDiagnosis($("diagnosisOutput"), analysis);
+  renderMissingKeywords($("missingKeywords"), analysis);
+  renderMatchedKeywords($("matchedKeywords"), analysis);
 
   const flags = buildRedFlags(resumeText, jobText, analysis);
-  const redFlags = document.getElementById("redFlags");
-  if (redFlags) redFlags.innerHTML = flags.map(flag => `<li>${flag}</li>`).join("");
+  if ($("redFlags")) $("redFlags").innerHTML = flags.map(flag => `<li>${flag}</li>`).join("");
 
-  const summaryOutput = document.getElementById("summaryOutput");
-  const bulletOutput = document.getElementById("bulletOutput");
-  if (summaryOutput) summaryOutput.textContent = buildSummary(jobType, analysis);
-  if (bulletOutput) bulletOutput.textContent = buildBullets(jobType, analysis);
+  setRewriteHeadings(analysis.output);
+  if ($("summaryOutput")) $("summaryOutput").textContent = analysis.output.summary;
+  if ($("bulletOutput")) $("bulletOutput").textContent = analysis.output.bullets.map(item => `• ${item}`).join("\n");
 
-  resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (resultsEl) resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-let auth = null;
-let db = null;
-let currentUser = null;
-let cloudItems = [];
-let unsubscribeTracker = null;
-let authMode = "create";
-
-function hasFirebaseConfig(config) {
-  return Boolean(
-    config &&
-    config.apiKey &&
-    config.projectId &&
-    !String(config.apiKey).includes("PASTE_") &&
-    !String(config.projectId).includes("PASTE_")
-  );
+function clearAnalyzer() {
+  if ($("resumeText")) $("resumeText").value = "";
+  if ($("jobText")) $("jobText").value = "";
+  if ($("results")) $("results").hidden = true;
+  if ($("rewrite")) $("rewrite").hidden = true;
+  if ($("scoreValue")) $("scoreValue").textContent = "0";
+  if ($("scoreMessage")) $("scoreMessage").textContent = "";
+  if ($("scoreBar")) $("scoreBar").style.width = "0%";
+  ["diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
+    const el = $(id);
+    if (el) el.textContent = "";
+  });
+  setRewriteHeadings({ summaryHeading: "ATS-friendly summary", bulletHeading: "Resume bullets or right direction" });
 }
 
-let firebaseEnabled = false;
-let firebaseLoadPromise = null;
+function openMenu() {
+  const menu = $("navMenu");
+  const backdrop = $("menuBackdrop");
+  const toggle = $("menuToggle");
+  if (!menu || !backdrop || !toggle) return;
+  menu.classList.add("open");
+  menu.setAttribute("aria-hidden", "false");
+  toggle.setAttribute("aria-expanded", "true");
+  backdrop.hidden = false;
+  document.body.classList.add("menu-open");
+}
 
-async function setupFirebase() {
-  if (firebaseLoadPromise) return firebaseLoadPromise;
-
-  firebaseLoadPromise = (async () => {
-    try {
-      const configModule = await import("./firebase-config.js");
-      const firebaseConfig = configModule.firebaseConfig;
-
-      if (!hasFirebaseConfig(firebaseConfig)) {
-        firebaseEnabled = false;
-        return false;
-      }
-
-      const [appModule, authModule, firestoreModule] = await Promise.all([
-        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
-        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
-        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js")
-      ]);
-
-      initializeApp = appModule.initializeApp;
-      getAuth = authModule.getAuth;
-      createUserWithEmailAndPassword = authModule.createUserWithEmailAndPassword;
-      signInWithEmailAndPassword = authModule.signInWithEmailAndPassword;
-      firebaseSignOut = authModule.signOut;
-      onAuthStateChanged = authModule.onAuthStateChanged;
-      updateProfile = authModule.updateProfile;
-      sendPasswordResetEmail = authModule.sendPasswordResetEmail;
-
-      getFirestore = firestoreModule.getFirestore;
-      collection = firestoreModule.collection;
-      addDoc = firestoreModule.addDoc;
-      deleteDoc = firestoreModule.deleteDoc;
-      doc = firestoreModule.doc;
-      onSnapshot = firestoreModule.onSnapshot;
-      query = firestoreModule.query;
-      orderBy = firestoreModule.orderBy;
-      serverTimestamp = firestoreModule.serverTimestamp;
-      getDocs = firestoreModule.getDocs;
-      writeBatch = firestoreModule.writeBatch;
-
-      const firebaseApp = initializeApp(firebaseConfig);
-      auth = getAuth(firebaseApp);
-      db = getFirestore(firebaseApp);
-      firebaseEnabled = true;
-      return true;
-    } catch (error) {
-      console.warn("Account saving did not load. Analyzer still works:", error);
-      firebaseEnabled = false;
-      return false;
-    }
-  })();
-
-  return firebaseLoadPromise;
+function closeMenu() {
+  const menu = $("navMenu");
+  const backdrop = $("menuBackdrop");
+  const toggle = $("menuToggle");
+  if (!menu || !backdrop || !toggle) return;
+  menu.classList.remove("open");
+  menu.setAttribute("aria-hidden", "true");
+  toggle.setAttribute("aria-expanded", "false");
+  backdrop.hidden = true;
+  document.body.classList.remove("menu-open");
 }
 
 function storageGet(key, fallback = null) {
@@ -1619,21 +1196,10 @@ function storageSet(key, value) {
 function storageRemove(key) {
   try {
     localStorage.removeItem(key);
-    return true;
-  } catch (error) {
-    return false;
-  }
+  } catch (error) {}
 }
 
 function getCurrentUser() {
-  if (firebaseEnabled && currentUser) {
-    return {
-      uid: currentUser.uid,
-      name: currentUser.displayName || currentUser.email?.split("@")[0] || "User",
-      email: currentUser.email
-    };
-  }
-
   try {
     return JSON.parse(storageGet("gmpt_current_user", "null") || "null");
   } catch (error) {
@@ -1642,296 +1208,101 @@ function getCurrentUser() {
   }
 }
 
-function cleanEmail(email) {
-  return normalize(email || "guest").replace(/\s+/g, "_");
-}
-
-function getTrackerKey() {
+function trackerKey() {
   const user = getCurrentUser();
-  return user?.email ? `gmpt_tracker_${cleanEmail(user.email)}` : "gmpt_tracker_guest";
-}
-
-function escapeHTML(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return user && user.email ? `gmpt_tracker_${normalize(user.email).replace(/\s+/g, "_")}` : "gmpt_tracker_guest";
 }
 
 function loadTracker() {
-  if (firebaseEnabled && db && currentUser) return cloudItems;
-
   try {
-    return JSON.parse(storageGet(getTrackerKey(), "[]") || "[]");
+    return JSON.parse(storageGet(trackerKey(), "[]") || "[]");
   } catch (error) {
     return [];
   }
 }
 
 function saveTracker(items) {
-  storageSet(getTrackerKey(), JSON.stringify(items));
-}
-
-function setAuthMessage(message = "", type = "") {
-  const authMessage = document.getElementById("authMessage");
-  if (!authMessage) return;
-  authMessage.textContent = message;
-  authMessage.className = `auth-message ${type}`.trim();
-}
-
-function setAuthMode(mode) {
-  authMode = mode === "signin" ? "signin" : "create";
-
-  const title = document.getElementById("authTitle");
-  const eyebrow = document.getElementById("authEyebrow");
-  const help = document.getElementById("authHelp");
-  const nameField = document.getElementById("nameField");
-  const nameInput = document.getElementById("userName");
-  const passwordInput = document.getElementById("userPassword");
-  const submitBtn = document.getElementById("accountSubmitBtn");
-  const resetBtn = document.getElementById("passwordResetBtn");
-  const switchText = document.getElementById("authSwitchText");
-
-  if (!title || !eyebrow || !help || !nameField || !nameInput || !passwordInput || !submitBtn || !resetBtn || !switchText) return;
-
-  if (authMode === "create") {
-    eyebrow.textContent = "Create account";
-    title.textContent = "Create your free account";
-    help.textContent = "Save your job applications and come back later from any device.";
-    submitBtn.textContent = "Create Account";
-    nameField.hidden = false;
-    nameInput.required = true;
-    passwordInput.autocomplete = "new-password";
-    resetBtn.hidden = true;
-    switchText.innerHTML = 'Already have an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>';
-  } else {
-    eyebrow.textContent = "Sign in";
-    title.textContent = "Welcome back";
-    help.textContent = "Access your saved job applications.";
-    submitBtn.textContent = "Sign In";
-    nameField.hidden = true;
-    nameInput.required = false;
-    passwordInput.autocomplete = "current-password";
-    resetBtn.hidden = false;
-    switchText.innerHTML = 'Need an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Create one</button>';
-  }
-
-  const switchBtn = document.getElementById("switchAuthBtn");
-  if (switchBtn) switchBtn.onclick = () => setAuthMode(authMode === "create" ? "signin" : "create");
-  setAuthMessage("");
-}
-
-function formatAuthError(error) {
-  const code = error?.code || "";
-  if (code.includes("invalid-credential") || code.includes("wrong-password")) return "That email/password did not work. If this is your first time, tap Create account first.";
-  if (code.includes("user-not-found")) return "No account found with that email. Tap Create account first.";
-  if (code.includes("email-already-in-use")) return "That email already has an account. Switch to Sign in instead.";
-  if (code.includes("weak-password")) return "Password must be at least 6 characters.";
-  if (code.includes("invalid-email")) return "Enter a valid email address.";
-  if (code.includes("operation-not-allowed")) return "Account sign-in is not ready yet. Try again later.";
-  return error?.message || "Something went wrong. Try again.";
-}
-
-async function handleAccountSubmit(event) {
-  event.preventDefault();
-  try {
-    if (authMode === "create") {
-      await createAccount();
-    } else {
-      await signIn();
-    }
-  } catch (error) {
-    console.error("Account button failed:", error);
-    setAuthMessage(formatAuthError(error), "error");
-  }
-}
-
-function renderAccount() {
-  const user = getCurrentUser();
-  const navUser = document.getElementById("navUser");
-  const accountStatus = document.getElementById("accountStatus");
-  const accountNote = document.getElementById("accountNote");
-  const trackerNote = document.getElementById("trackerNote");
-  const signOutBtn = document.getElementById("signOutBtn");
-  const accountForm = document.getElementById("accountForm");
-  const authCard = document.getElementById("authCard");
-  const accountStatusCard = document.getElementById("accountStatusCard");
-
-  if (!navUser || !accountStatus || !accountNote || !trackerNote || !signOutBtn || !accountForm || !authCard || !accountStatusCard) return;
-
-  if (!firebaseEnabled || !auth || !db) {
-    if (user) {
-      navUser.textContent = `Signed in as ${user.name}`;
-      accountStatus.textContent = `Signed in as ${user.name}`;
-      accountNote.textContent = `${user.email} — saved on this device.`;
-      trackerNote.textContent = `Tracking applications for ${user.name}.`;
-      authCard.hidden = true;
-      accountStatusCard.hidden = false;
-      signOutBtn.hidden = false;
-      accountForm.reset();
-    } else {
-      navUser.textContent = "Create or sign in";
-      trackerNote.textContent = "You can use the tracker now. Sign in to keep your list separate.";
-      authCard.hidden = false;
-      accountStatusCard.hidden = true;
-      signOutBtn.hidden = true;
-    }
-    return;
-  }
-
-  if (user) {
-    navUser.textContent = `Signed in as ${user.name}`;
-    accountStatus.textContent = `Signed in as ${user.name}`;
-    accountNote.textContent = `${user.email} — your applications are saved to your account.`;
-    trackerNote.textContent = `Tracking applications for ${user.name}.`;
-    authCard.hidden = true;
-    accountStatusCard.hidden = false;
-    signOutBtn.hidden = false;
-    accountForm.reset();
-  } else {
-    navUser.textContent = "Create or sign in";
-    trackerNote.textContent = "Sign in from the menu to save applications to your account.";
-    authCard.hidden = false;
-    accountStatusCard.hidden = true;
-    signOutBtn.hidden = true;
-  }
+  storageSet(trackerKey(), JSON.stringify(items));
 }
 
 function renderTracker() {
-  const rows = document.getElementById("trackerRows");
+  const rows = $("trackerRows");
   if (!rows) return;
   const items = loadTracker();
-  rows.innerHTML = "";
-
   if (!items.length) {
-    rows.innerHTML = `<tr><td colspan="6">No applications tracked yet.</td></tr>`;
+    rows.innerHTML = '<tr><td colspan="6">No applications tracked yet.</td></tr>';
     return;
   }
-
-  items.forEach((item, index) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
+  rows.innerHTML = items.map((item, index) => `
+    <tr>
       <td>${escapeHTML(item.date)}</td>
       <td>${escapeHTML(item.company)}</td>
       <td>${escapeHTML(item.role)}</td>
       <td>${escapeHTML(item.pay || "—")}</td>
       <td>${escapeHTML(item.status)}</td>
-      <td><button class="delete-row" data-index="${index}" data-id="${escapeHTML(item.id || "")}">Delete</button></td>
-    `;
-    rows.appendChild(row);
-  });
+      <td><button class="delete-row" data-index="${index}" type="button">Delete</button></td>
+    </tr>
+  `).join("");
 }
 
-async function signIn() {
-  setAuthMessage("Signing in...", "");
-
-  if (!firebaseEnabled || !auth || !db) {
-    const name = document.getElementById("userName")?.value.trim() || "Local User";
-    const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
-
-    if (!email) {
-      setAuthMessage("Enter your email.", "error");
-      return;
-    }
-
-    storageSet("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString() }));
-    document.getElementById("accountForm")?.reset();
-    renderAccount();
-    renderTracker();
-    returnHomeAfterAuth("Signed in.");
-    return;
-  }
-
-  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
-  const password = document.getElementById("userPassword")?.value || "";
-
-  if (!email || !password) {
-    setAuthMessage("Enter your email and password.", "error");
-    return;
-  }
-
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-    returnHomeAfterAuth("Signed in. Welcome back.");
-  } catch (error) {
-    setAuthMessage(formatAuthError(error), "error");
-  }
+function setAuthMessage(message = "", type = "") {
+  const el = $("authMessage");
+  if (!el) return;
+  el.textContent = message;
+  el.className = `auth-message ${type}`.trim();
 }
 
-async function createAccount() {
-  setAuthMessage("Creating account...", "");
+function renderAccount() {
+  const user = getCurrentUser();
+  if ($("navUser")) $("navUser").textContent = user ? `Signed in as ${user.name}` : "Create or sign in";
+  if ($("trackerNote")) $("trackerNote").textContent = user ? `Tracking applications for ${user.name}.` : "Track where you applied, pay, status, and follow-up dates. Sign in from the menu to keep your list separate.";
+  if ($("authCard")) $("authCard").hidden = Boolean(user);
+  if ($("accountStatusCard")) $("accountStatusCard").hidden = !user;
+  if ($("accountStatus")) $("accountStatus").textContent = user ? `Signed in as ${user.name}` : "You're signed in";
+  if ($("accountNote")) $("accountNote").textContent = user ? `${user.email} — saved on this device.` : "Your job applications are saved to your account.";
+}
 
-  const name = document.getElementById("userName")?.value.trim();
-  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
-  const password = document.getElementById("userPassword")?.value || "";
+let authMode = "create";
 
-  if (!name || !email || !password) {
-    setAuthMessage("Enter your name, email, and password to create an account.", "error");
+function setAuthMode(mode) {
+  authMode = mode === "signin" ? "signin" : "create";
+  const create = authMode === "create";
+  if ($("authEyebrow")) $("authEyebrow").textContent = create ? "Create account" : "Sign in";
+  if ($("authTitle")) $("authTitle").textContent = create ? "Create your free account" : "Welcome back";
+  if ($("authHelp")) $("authHelp").textContent = create ? "Save your job applications and come back later." : "Access your saved job applications on this device.";
+  if ($("accountSubmitBtn")) $("accountSubmitBtn").textContent = create ? "Create Account" : "Sign In";
+  if ($("nameField")) $("nameField").hidden = !create;
+  if ($("userName")) $("userName").required = create;
+  if ($("passwordResetBtn")) $("passwordResetBtn").hidden = create;
+  if ($("authSwitchText")) {
+    $("authSwitchText").innerHTML = create
+      ? 'Already have an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>'
+      : 'Need an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Create one</button>';
+  }
+  const switchBtn = $("switchAuthBtn");
+  if (switchBtn) switchBtn.onclick = () => setAuthMode(create ? "signin" : "create");
+  setAuthMessage("", "");
+}
+
+function handleAccountSubmit(event) {
+  event.preventDefault();
+  const email = ($("userEmail")?.value || "").trim().toLowerCase();
+  const password = $("userPassword")?.value || "";
+  const name = ($("userName")?.value || "").trim() || email.split("@")[0] || "User";
+  if (!email) {
+    setAuthMessage("Enter your email.", "error");
     return;
   }
-
   if (password.length < 6) {
     setAuthMessage("Password must be at least 6 characters.", "error");
     return;
   }
-
-  if (!firebaseEnabled || !auth || !db) {
-    storageSet("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString(), localOnly: true }));
-    document.getElementById("accountForm")?.reset();
-    renderAccount();
-    renderTracker();
-    returnHomeAfterAuth("Account created on this device. The analyzer and tracker are ready.");
-    return;
-  }
-
-  try {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(credential.user, { displayName: name });
-    currentUser = credential.user;
-    renderAccount();
-    returnHomeAfterAuth("Account created. Your applications are saved to your account.");
-  } catch (error) {
-    setAuthMessage(formatAuthError(error), "error");
-  }
-}
-
-async function resetPassword() {
-  if (!firebaseEnabled || !auth) {
-    setAuthMessage("Account saving is still being set up.", "error");
-    return;
-  }
-
-  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
-  if (!email) {
-    setAuthMessage("Enter your email first, then tap Forgot password.", "error");
-    return;
-  }
-
-  try {
-    await sendPasswordResetEmail(auth, email);
-    setAuthMessage("Password reset email sent. Check your inbox and spam folder.", "success");
-  } catch (error) {
-    setAuthMessage(formatAuthError(error), "error");
-  }
-}
-
-async function signOut() {
-  try {
-    if (firebaseEnabled && auth) {
-      await firebaseSignOut(auth);
-    }
-  } catch (error) {
-    console.warn("Cloud sign out failed. Clearing local session:", error);
-  }
-
-  storageRemove("gmpt_current_user");
-  currentUser = null;
+  storageSet("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString(), mode: authMode }));
+  const form = $("accountForm");
+  if (form) form.reset();
   renderAccount();
   renderTracker();
   closeMenu();
-  document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function exportTrackerCSV() {
@@ -1940,342 +1311,133 @@ function exportTrackerCSV() {
     alert("No applications to export yet.");
     return;
   }
-
-  const headers = ["Date", "Company", "Role", "Pay", "Status"];
-  const rows = items.map(item => [item.date, item.company, item.role, item.pay || "", item.status]);
-  const csv = [headers, ...rows]
-    .map(row => row.map(value => `"${String(value || "").replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-
+  const rows = [["Date", "Company", "Role", "Pay", "Status"], ...items.map(item => [item.date, item.company, item.role, item.pay || "", item.status])];
+  const csv = rows.map(row => row.map(value => `"${text(value).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  const user = getCurrentUser();
-  link.href = url;
-  link.download = `${user?.name ? cleanEmail(user.name) : "guest"}-job-tracker.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "job-tracker.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 
-async function clearTracker() {
-  const items = loadTracker();
-  if (!items.length) return;
-  const user = getCurrentUser();
-  const label = user ? `${user.name}'s tracker` : "the guest tracker";
-  if (!confirm(`Clear ${label}? This cannot be undone.`)) return;
+function initEvents() {
+  const analyzeBtn = $("analyzeBtn");
+  if (analyzeBtn) analyzeBtn.addEventListener("click", analyzeAndRender);
 
-  if (firebaseEnabled && db && currentUser) {
-    const snapshot = await getDocs(collection(db, "users", currentUser.uid, "applications"));
-    const batch = writeBatch(db);
-    snapshot.forEach(documentSnapshot => batch.delete(documentSnapshot.ref));
-    await batch.commit();
-    return;
-  }
+  const clearBtn = $("clearBtn");
+  if (clearBtn) clearBtn.addEventListener("click", clearAnalyzer);
 
-  saveTracker([]);
-  renderTracker();
-}
-
-function watchCloudTracker() {
-  if (unsubscribeTracker) {
-    unsubscribeTracker();
-    unsubscribeTracker = null;
-  }
-
-  cloudItems = [];
-
-  if (!firebaseEnabled || !db || !currentUser) {
-    renderTracker();
-    return;
-  }
-
-  const trackerQuery = query(
-    collection(db, "users", currentUser.uid, "applications"),
-    orderBy("createdAt", "desc")
-  );
-
-  unsubscribeTracker = onSnapshot(trackerQuery, snapshot => {
-    cloudItems = snapshot.docs.map(documentSnapshot => ({
-      id: documentSnapshot.id,
-      ...documentSnapshot.data()
-    }));
-    renderTracker();
-  }, error => {
-    console.error(error);
-    alert("Could not load your saved applications. Try again in a minute.");
-  });
-}
-
-async function addApplication(event) {
-  event.preventDefault();
-
-  const company = document.getElementById("company")?.value.trim();
-  const role = document.getElementById("role")?.value.trim();
-  if (!company || !role) return;
-
-  const item = {
-    date: new Date().toLocaleDateString(),
-    company,
-    role,
-    pay: document.getElementById("pay")?.value.trim() || "",
-    status: document.getElementById("status")?.value || "Saved"
-  };
-
-  if (firebaseEnabled && db && currentUser) {
-    try {
-      await addDoc(collection(db, "users", currentUser.uid, "applications"), {
-        ...item,
-        createdAt: serverTimestamp()
-      });
-      event.target.reset();
-      return;
-    } catch (error) {
-      console.error("Cloud tracker save failed. Saving locally instead:", error);
-    }
-  }
-
-  const items = loadTracker();
-  items.unshift(item);
-  saveTracker(items);
-  event.target.reset();
-  renderTracker();
-}
-
-async function deleteApplication(event) {
-  if (!event.target.matches(".delete-row")) return;
-
-  if (firebaseEnabled && db && currentUser) {
-    const id = event.target.dataset.id;
-    if (!id) return;
-    await deleteDoc(doc(db, "users", currentUser.uid, "applications", id));
-    return;
-  }
-
-  const items = loadTracker();
-  items.splice(Number(event.target.dataset.index), 1);
-  saveTracker(items);
-  renderTracker();
-}
-
-function initAuthListener() {
-  if (!firebaseEnabled || !auth) {
-    renderAccount();
-    renderTracker();
-    return;
-  }
-
-  onAuthStateChanged(auth, user => {
-    currentUser = user;
-    renderAccount();
-    watchCloudTracker();
-  });
-}
-
-function openMenu(mode = null) {
-  const navMenu = document.getElementById("navMenu");
-  const backdrop = document.getElementById("menuBackdrop");
-  const toggle = document.getElementById("menuToggle");
-  if (!navMenu || !backdrop || !toggle) return;
-  if (mode) setAuthMode(mode);
-  navMenu.classList.add("open");
-  navMenu.setAttribute("aria-hidden", "false");
-  toggle.setAttribute("aria-expanded", "true");
-  backdrop.hidden = false;
-  document.body.classList.add("menu-open");
-}
-
-function closeMenu() {
-  const navMenu = document.getElementById("navMenu");
-  const backdrop = document.getElementById("menuBackdrop");
-  const toggle = document.getElementById("menuToggle");
-  if (!navMenu || !backdrop || !toggle) return;
-  navMenu.classList.remove("open");
-  navMenu.setAttribute("aria-hidden", "true");
-  toggle.setAttribute("aria-expanded", "false");
-  backdrop.hidden = true;
-  document.body.classList.remove("menu-open");
-}
-
-function returnHomeAfterAuth(message = "") {
-  if (message) setAuthMessage(message, "success");
-  closeMenu();
-  document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function clearAnalyzer() {
-  const resume = document.getElementById("resumeText");
-  const job = document.getElementById("jobText");
-  const results = document.getElementById("results");
-  const rewrite = document.getElementById("rewrite");
-  const scoreBar = document.getElementById("scoreBar");
-
-  if (resume) resume.value = "";
-  if (job) job.value = "";
-  if (results) results.hidden = true;
-  if (rewrite) rewrite.hidden = true;
-  if (scoreBar) scoreBar.style.width = "0%";
-  const scoreValue = document.getElementById("scoreValue");
-  const scoreMessage = document.getElementById("scoreMessage");
-  if (scoreValue) scoreValue.textContent = "0";
-  if (scoreMessage) scoreMessage.textContent = "";
-
-  document.getElementById("missingKeywords")?.replaceChildren();
-  document.getElementById("matchedKeywords")?.replaceChildren();
-  document.getElementById("redFlags")?.replaceChildren();
-  document.getElementById("summaryOutput")?.replaceChildren();
-  document.getElementById("bulletOutput")?.replaceChildren();
-}
-
-function copyTextFallback(value) {
-  const text = String(value || "");
-  if (!text) return Promise.resolve(false);
-  if (navigator.clipboard?.writeText) {
-    return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  let ok = false;
-  try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
-  textarea.remove();
-  return Promise.resolve(ok);
-}
-
-function toggleDrawerPanel(button) {
-  const targetId = button?.getAttribute("data-drawer-page");
-  const targetPanel = targetId ? document.getElementById(targetId) : null;
-  const isOpen = targetPanel && !targetPanel.hidden;
-
-  document.querySelectorAll(".drawer-page-panel").forEach(panel => {
-    panel.hidden = true;
-  });
-  document.querySelectorAll(".drawer-page-button").forEach(item => {
-    item.classList.remove("active");
-  });
-
-  if (targetPanel && !isOpen) {
-    targetPanel.hidden = false;
-    button.classList.add("active");
-  }
-}
-
-function openAccountDrawer(event) {
-  event?.preventDefault?.();
-  setAuthMode("create");
-  openMenu();
-}
-
-function bindButton(id, handler) {
-  const button = document.getElementById(id);
-  if (!button) return;
-  button.type = button.type || "button";
-  button.onclick = event => {
-    event.preventDefault();
-    try {
-      const result = handler(event);
-      if (result?.catch) result.catch(error => {
-        console.error(`${id} failed:`, error);
-        alert("Something went wrong. Refresh the page and try again.");
-      });
-    } catch (error) {
-      console.error(`${id} failed:`, error);
-      alert("Something went wrong. Refresh the page and try again.");
-    }
-  };
-}
-
-let initialized = false;
-
-function init() {
-  if (initialized) return;
-  initialized = true;
-
-  bindButton("analyzeBtn", analyzeAndRender);
-  bindButton("clearBtn", clearAnalyzer);
-  bindButton("menuToggle", () => {
-    const navMenu = document.getElementById("navMenu");
-    if (navMenu?.classList.contains("open")) closeMenu();
+  const menuToggle = $("menuToggle");
+  if (menuToggle) menuToggle.addEventListener("click", () => {
+    const menu = $("navMenu");
+    if (menu && menu.classList.contains("open")) closeMenu();
     else openMenu();
   });
-  bindButton("menuClose", closeMenu);
-  bindButton("passwordResetBtn", resetPassword);
-  bindButton("signOutBtn", signOut);
-  bindButton("exportTrackerBtn", exportTrackerCSV);
-  bindButton("clearTrackerBtn", clearTracker);
 
-  document.getElementById("menuBackdrop")?.addEventListener("click", closeMenu);
-  document.querySelectorAll("#navMenu .menu-item").forEach(link => {
-    link.addEventListener("click", closeMenu);
-  });
-  document.querySelectorAll("[data-open-account]").forEach(button => {
-    button.onclick = openAccountDrawer;
-  });
-  document.querySelectorAll("[data-drawer-page]").forEach(button => {
-    button.onclick = () => toggleDrawerPanel(button);
-  });
+  const menuClose = $("menuClose");
+  if (menuClose) menuClose.addEventListener("click", closeMenu);
+  const backdrop = $("menuBackdrop");
+  if (backdrop) backdrop.addEventListener("click", closeMenu);
+  document.querySelectorAll("#navMenu .menu-item").forEach(link => link.addEventListener("click", closeMenu));
+  document.querySelectorAll("[data-open-account]").forEach(button => button.addEventListener("click", event => {
+    event.preventDefault();
+    setAuthMode("create");
+    openMenu();
+  }));
+  document.querySelectorAll("[data-drawer-page]").forEach(button => button.addEventListener("click", () => {
+    const target = $(button.getAttribute("data-drawer-page"));
+    const alreadyOpen = target && !target.hidden;
+    document.querySelectorAll(".drawer-page-panel").forEach(panel => { panel.hidden = true; });
+    document.querySelectorAll(".drawer-page-button").forEach(item => item.classList.remove("active"));
+    if (target && !alreadyOpen) {
+      target.hidden = false;
+      button.classList.add("active");
+    }
+  }));
 
-  document.querySelectorAll(".copy-button").forEach(button => {
-    button.onclick = async event => {
-      event.preventDefault();
-      const target = document.getElementById(button.dataset.copy);
-      const old = button.textContent;
-      await copyTextFallback(target?.textContent || "");
-      button.textContent = "Copied";
-      setTimeout(() => (button.textContent = old), 1200);
-    };
-  });
-
-  document.getElementById("togglePasswordBtn")?.addEventListener("click", () => {
-    const input = document.getElementById("userPassword");
-    const button = document.getElementById("togglePasswordBtn");
-    if (!input || !button) return;
+  const togglePassword = $("togglePasswordBtn");
+  if (togglePassword) togglePassword.addEventListener("click", () => {
+    const input = $("userPassword");
+    if (!input) return;
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
-    button.textContent = showing ? "Show" : "Hide";
-  });
-
-  const accountForm = document.getElementById("accountForm");
-  if (accountForm) {
-    accountForm.onsubmit = handleAccountSubmit;
-  }
-  const trackerForm = document.getElementById("trackerForm");
-  if (trackerForm) {
-    trackerForm.onsubmit = addApplication;
-  }
-  const trackerRows = document.getElementById("trackerRows");
-  if (trackerRows) {
-    trackerRows.onclick = deleteApplication;
-  }
-
-  document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeMenu();
+    togglePassword.textContent = showing ? "Show" : "Hide";
   });
 
   setAuthMode("create");
+  const accountForm = $("accountForm");
+  if (accountForm) accountForm.addEventListener("submit", handleAccountSubmit);
+  const passwordResetBtn = $("passwordResetBtn");
+  if (passwordResetBtn) passwordResetBtn.addEventListener("click", () => setAuthMessage("Password reset is not connected yet. Create a new local sign-in or contact support.", "error"));
+  const signOutBtn = $("signOutBtn");
+  if (signOutBtn) signOutBtn.addEventListener("click", () => {
+    storageRemove("gmpt_current_user");
+    renderAccount();
+    renderTracker();
+    closeMenu();
+  });
+
+  const trackerForm = $("trackerForm");
+  if (trackerForm) trackerForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const company = ($("company")?.value || "").trim();
+    const role = ($("role")?.value || "").trim();
+    if (!company || !role) return;
+    const items = loadTracker();
+    items.unshift({
+      date: new Date().toLocaleDateString(),
+      company,
+      role,
+      pay: ($("pay")?.value || "").trim(),
+      status: $("status")?.value || "Saved"
+    });
+    saveTracker(items);
+    trackerForm.reset();
+    renderTracker();
+  });
+
+  const trackerRows = $("trackerRows");
+  if (trackerRows) trackerRows.addEventListener("click", event => {
+    if (!event.target.matches(".delete-row")) return;
+    const items = loadTracker();
+    items.splice(Number(event.target.dataset.index), 1);
+    saveTracker(items);
+    renderTracker();
+  });
+
+  const exportBtn = $("exportTrackerBtn");
+  if (exportBtn) exportBtn.addEventListener("click", exportTrackerCSV);
+  const clearTrackerBtn = $("clearTrackerBtn");
+  if (clearTrackerBtn) clearTrackerBtn.addEventListener("click", () => {
+    if (!loadTracker().length) return;
+    if (!confirm("Clear tracker? This cannot be undone.")) return;
+    saveTracker([]);
+    renderTracker();
+  });
+
+  document.querySelectorAll(".copy-button").forEach(button => button.addEventListener("click", () => {
+    const target = $(button.dataset.copy);
+    const value = target ? target.textContent : "";
+    if (navigator.clipboard && value) navigator.clipboard.writeText(value).catch(() => {});
+    const old = button.textContent;
+    button.textContent = "Copied";
+    setTimeout(() => { button.textContent = old; }, 1200);
+  }));
+}
+
+function init() {
+  initEvents();
   renderAccount();
   renderTracker();
   window.GMPT_APP_READY = true;
-
-  setupFirebase().then(isReady => {
-    if (isReady) {
-      initAuthListener();
-    } else {
-      renderAccount();
-      renderTracker();
-    }
-  }).catch(error => {
-    console.warn("Account setup failed. Analyzer and local tracker still work:", error);
-    firebaseEnabled = false;
-    renderAccount();
-    renderTracker();
-  });
 }
 
-document.addEventListener("DOMContentLoaded", init);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}
