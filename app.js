@@ -995,7 +995,7 @@ function init() {
   document.getElementById("menuToggle").addEventListener("click", () => openMenu());
   document.getElementById("menuClose").addEventListener("click", closeMenu);
   document.getElementById("menuBackdrop").addEventListener("click", closeMenu);
-  document.querySelectorAll(".drawer-links .nav-link").forEach(link => {
+  document.querySelectorAll("#navMenu .menu-item").forEach(link => {
     link.addEventListener("click", closeMenu);
   });
 
