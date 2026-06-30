@@ -16,9 +16,15 @@ This is a starter prototype, not a guarantee of an interview. The goal is to hel
 
 ## How to run it
 
-Open `index.html` in your browser.
+For GitHub Pages, upload the files and open the live site link.
 
-No install required. No backend required. No API key required.
+For local testing, run a small local server because this version uses JavaScript modules:
+
+```bash
+python -m http.server 8000
+```
+
+Then open `http://localhost:8000`.
 
 ## How to put it on GitHub Pages
 
@@ -45,14 +51,25 @@ GitHub will give you a live website link.
 ### Resume analyzer
 Paste a resume and a job description. The app extracts important words from the job description and checks whether the resume includes them.
 
-### Job type presets
+### 25 job type presets
 The app includes presets for:
 
-- General jobs
-- Manufacturing / machine operator jobs
-- Maintenance / electrical helper jobs
-- CDL / logistics jobs
-- Entry-level / paid training jobs
+- Remote customer support
+- Data entry and clerical
+- Customer service and call center
+- Warehouse and forklift
+- Manufacturing and machine operator
+- Apartment maintenance and property maintenance
+- Construction, electrician helper, welding, diesel, CDL, security, healthcare support, hospitality, food service, janitorial, retail, admin, apprenticeships, and more
+- Warehouse / forklift jobs
+- Construction / carpentry jobs
+- Electrician apprentice jobs
+- Welding / fabrication helper jobs
+- Diesel mechanic / heavy equipment jobs
+- Security officer jobs
+- Remote entry-level / customer support jobs
+- Trade apprenticeship jobs
+- Rail / industrial jobs
 
 ### Recruiter red flags
 The app checks for common issues like:
@@ -72,8 +89,8 @@ Users can save jobs they applied to. It stores data in the browser using localSt
 - PDF resume upload
 - Better date overlap detection
 - AI rewrite mode
-- Login accounts
-- Cloud application tracker
+- PDF resume upload
+- Better date overlap detection
 - Export tailored resume as PDF
 - Follow-up email generator
 - Company contact finder
@@ -82,3 +99,45 @@ Users can save jobs they applied to. It stores data in the browser using localSt
 ## Brand angle
 
 **GET ME PAST ATS** is for people who are tired of applying to 100 jobs and never hearing back. It speaks plain language and tells users what to fix before they waste another application.
+
+
+## 50 Job Type Update
+
+The dropdown now includes 50 common job titles across office, remote, warehouse, trades, manufacturing, hospitality, healthcare, education, HR, accounting, IT, and cybersecurity roles.
+
+## Local sign-in and tracker update
+
+This version adds a simple starter sign-in panel.
+
+What it does now:
+
+- Lets a user sign in with name and email
+- Keeps each user's application tracker separate on the same browser
+- Saves tracked jobs with localStorage
+- Lets users export their tracker as a CSV file
+- Lets users clear their tracker
+
+Important: this is a local browser sign-in, not real cloud authentication. It does not sync across phones, computers, or browsers yet. To make real accounts, add Firebase Auth, Supabase Auth, or another backend/database.
+
+
+## Firebase cloud login version
+
+This version includes Firebase Authentication and Firestore support.
+
+Upload these files to GitHub after inserting your Firebase config:
+
+- `index.html`
+- `app.js`
+- `styles.css`
+- `firebase-config.js`
+
+Read `FIREBASE_SETUP.md` for setup steps and use `firestore.rules.txt` for Firestore security rules.
+
+
+## Latest UX update
+
+- Clean hamburger menu
+- Account form moved into the menu
+- Create account and sign in are separate views
+- No Firebase wording shown to users
+- After sign in or account creation, users return to the top of the page

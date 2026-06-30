@@ -365,6 +365,64 @@ function buildRedFlags(resumeText, jobText, analysis) {
   return flags;
 }
 
+function getJobFamily(jobType) {
+  const familyMap = {
+    general: "general",
+    customer_service_representative: "customer_service",
+    data_entry_clerk: "dataentry",
+    administrative_assistant: "admin",
+    receptionist: "admin",
+    call_center_representative: "call_center",
+    remote_customer_support_representative: "remote",
+    office_assistant: "admin",
+    sales_representative: "sales_retail",
+    retail_associate: "sales_retail",
+    cashier: "sales_retail",
+    stocker: "warehouse",
+    warehouse_associate: "warehouse",
+    package_handler: "warehouse",
+    material_handler: "warehouse",
+    forklift_operator: "warehouse",
+    delivery_driver: "delivery",
+    truck_driver: "cdl",
+    machine_operator: "manufacturing",
+    production_worker: "manufacturing",
+    assembly_worker: "manufacturing",
+    maintenance_technician: "maintenance",
+    apartment_maintenance_technician: "apartment",
+    electrician: "electrician",
+    welder: "welding",
+    diesel_mechanic: "diesel",
+    construction_laborer: "construction",
+    carpenter: "construction",
+    security_officer: "security",
+    janitor: "janitorial",
+    housekeeper: "janitorial",
+    hotel_front_desk_agent: "hospitality",
+    server: "food_service",
+    cook: "food_service",
+    certified_nursing_assistant: "healthcare_support",
+    medical_assistant: "healthcare_support",
+    patient_care_technician: "healthcare_support",
+    home_health_aide: "healthcare_support",
+    phlebotomist: "healthcare_support",
+    pharmacy_technician: "healthcare_support",
+    dental_assistant: "healthcare_support",
+    licensed_practical_nurse: "healthcare_support",
+    registered_nurse: "healthcare_support",
+    medical_billing_specialist: "healthcare_support",
+    medical_coding_specialist: "healthcare_support",
+    teacher_assistant: "apprenticeship",
+    substitute_teacher: "apprenticeship",
+    bookkeeper: "admin",
+    human_resources_assistant: "admin",
+    it_help_desk_technician: "it_helpdesk",
+    cybersecurity_analyst: "it_helpdesk"
+  };
+
+  return familyMap[jobType] || "general";
+}
+
 function buildSummary(jobType, analysis) {
   const strengths = analysis.matched.slice(0, 6);
   const needs = analysis.missing.slice(0, 4);
@@ -394,7 +452,7 @@ function buildSummary(jobType, analysis) {
     call_center: "Call center and dispatch candidate with phone communication, typing, documentation, customer service, scheduling, problem solving, and ability to handle high-volume work.",
     apprenticeship: "Motivated trade apprenticeship candidate with hands-on work experience, strong attendance, safety awareness, and willingness to learn a long-term skilled career.",
     rail: "Rail and industrial candidate with safety awareness, equipment inspection habits, material handling experience, production background, and strong team communication."
-  }[jobType] || "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.";
+  }[getJobFamily(jobType)] || "Reliable candidate with hands-on work experience, strong attendance, teamwork, communication, safety awareness, and the ability to learn new tasks quickly.";
 
   return `${typeLine} Experienced working in fast-paced environments, following instructions, supporting production goals, and learning new equipment or processes. Key strengths for this role include ${strengths.length ? strengths.join(", ") : "safety, reliability, teamwork, and problem solving"}. Add honest proof for these job-post keywords if they apply: ${needs.length ? needs.join(", ") : "no major missing keywords found"}.`;
 }
@@ -428,7 +486,7 @@ function buildBullets(jobType, analysis) {
     call_center: ["Handled calls, messages, scheduling, dispatch, documentation, and customer questions in a high-volume environment.", "Used phone etiquette, typing, CRM-style tools, and clear communication to track and resolve issues.", "Remained calm and organized while helping customers, drivers, technicians, or internal teams."],
     apprenticeship: ["Showed strong willingness to learn by taking on hands-on tasks, following training, and improving through repetition.", "Built real work experience in fast-paced environments requiring reliability, attendance, safety, and teamwork.", "Supported daily operations by staying flexible, learning new responsibilities, and helping the team meet goals."],
     rail: ["Supported rail or industrial operations with safety awareness, equipment checks, material handling, and team communication.", "Followed procedures around railcars, yard activity, machinery, and production tasks to protect safety and efficiency.", "Communicated hazards, issues, and work progress clearly in a fast-paced industrial environment."]
-  }[jobType] || [
+  }[getJobFamily(jobType)] || [
     "Worked in a team environment while following company procedures, safety rules, and daily expectations.",
     "Learned new tasks quickly and supported supervisors by staying reliable, organized, and ready to help where needed.",
     "Used communication, attention to detail, and problem-solving to support daily work goals."
@@ -644,8 +702,8 @@ function renderAccount() {
     navUser.textContent = "Account setup needed";
     authCard.hidden = false;
     accountStatusCard.hidden = true;
-    trackerNote.textContent = "You can test the analyzer now. Account saving is still being set up.";
-    setAuthMessage("Account saving is still being set up. Try again soon.", "error");
+    trackerNote.textContent = "You can test the analyzer now. Add Firebase to enable account saving across devices.";
+    setAuthMessage("Cloud account saving is not connected yet. The analyzer still works.", "error");
     signOutBtn.hidden = true;
     return;
   }
