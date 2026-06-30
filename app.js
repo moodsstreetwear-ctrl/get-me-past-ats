@@ -1,6 +1,6 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "paid-logic-v2-all-job-types";
+window.GMPT_APP_VERSION = "paid-logic-v3-no-generic-copy";
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -609,31 +609,6 @@ function buildHealthcareWording(resumeText, diagnosisCategory) {
   return { summary: summarySentences.join(" "), bullets: bullets.slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
 }
 
-function buildWarehouseWording(resumeText, diagnosisCategory) {
-  const hasWarehouse = hasResumeProof(resumeText, "warehouse", "warehouse operations");
-  const hasLoad = hasResumeProof(resumeText, "warehouse", "loading and unloading");
-  const hasMaterial = hasResumeProof(resumeText, "warehouse", "material handling");
-  const hasPalletJack = hasResumeProof(resumeText, "warehouse", "pallet jack");
-  const hasWrap = hasResumeProof(resumeText, "warehouse", "pallet wrapping");
-  const hasInventory = hasResumeProof(resumeText, "warehouse", "inventory organization");
-  const hasSafety = hasResumeProof(resumeText, "warehouse", "warehouse safety");
-
-  const parts = [];
-  if (hasWarehouse) parts.push("warehouse operations");
-  if (hasLoad) parts.push("loading and unloading materials");
-  if (hasMaterial) parts.push("material handling");
-  if (hasInventory) parts.push("inventory organization");
-  const summary = parts.length ? `Warehouse worker with experience in ${joinEnglish(parts)}. Skilled with ${joinEnglish([hasPalletJack ? "pallet jacks" : "", hasWrap ? "pallet wrapping" : "", hasSafety ? "warehouse safety procedures" : ""])}.` : "";
-
-  const bullets = [];
-  if (hasLoad || hasMaterial) bullets.push(`Loaded, unloaded, and handled materials while keeping warehouse areas organized.`);
-  if (hasPalletJack || hasWrap) bullets.push(`Used ${joinEnglish([hasPalletJack ? "pallet jacks" : "", hasWrap ? "pallet wrapping" : ""])} to support daily warehouse flow.`);
-  if (hasInventory || hasSafety) bullets.push(`${joinEnglish([hasInventory ? "Organized inventory" : "", hasSafety ? "followed warehouse safety rules" : ""]).replace(/^./, char => char.toUpperCase())}.`);
-
-  return { summary, bullets: bullets.slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
-}
-
-
 const FAMILY_WORDING_BLUEPRINTS = {
   maintenance: {
     title: "Maintenance Technician",
@@ -826,6 +801,180 @@ function titleForWording(selectedLabel, family) {
   return FAMILY_WORDING_BLUEPRINTS[family]?.title || FAMILY_LABELS[family] || "Worker";
 }
 
+// V3: copy-ready resume wording cannot contain app/system language.
+const COPY_READY_BANNED_PATTERNS = [
+  /\bATS\b/i,
+  /proven skills/i,
+  /resume skills/i,
+  /reliable candidate/i,
+  /\bcandidate\b/i,
+  /\bapplicant\b/i,
+  /experience related to/i,
+  /related to [a-z\s/]+, including/i,
+  /apply proven/i,
+  /using proven/i,
+  /ATS systems can clearly read/i,
+  /support daily goals/i,
+  /able to follow instructions/i,
+  /follow instructions/i
+];
+
+function containsBannedCopyLanguage(value) {
+  return COPY_READY_BANNED_PATTERNS.some(pattern => pattern.test(text(value)));
+}
+
+function outputHasBannedCopyLanguage(output) {
+  if (!output) return true;
+  if (containsBannedCopyLanguage(output.summary)) return true;
+  return (output.bullets || []).some(containsBannedCopyLanguage);
+}
+
+function hasAnyProof(resumeText, family, proofNames) {
+  return proofNames.some(name => hasResumeProof(resumeText, family, name));
+}
+
+function makeSentence(parts, fallback = "") {
+  const cleaned = cleanList(parts);
+  return cleaned.length ? joinEnglish(cleaned) : fallback;
+}
+
+function buildWarehouseWording(resumeText, diagnosisCategory) {
+  const hasLoad = hasResumeProof(resumeText, "warehouse", "loading and unloading");
+  const hasMaterial = hasResumeProof(resumeText, "warehouse", "material handling");
+  const hasPalletJack = hasResumeProof(resumeText, "warehouse", "pallet jack");
+  const hasWrap = hasResumeProof(resumeText, "warehouse", "pallet wrapping");
+  const hasInventory = hasResumeProof(resumeText, "warehouse", "inventory organization");
+  const hasShipping = hasResumeProof(resumeText, "warehouse", "shipping and receiving");
+  const hasSafety = hasResumeProof(resumeText, "warehouse", "warehouse safety");
+  const hasRF = hasResumeProof(resumeText, "warehouse", "RF scanner");
+  const hasPicking = hasResumeProof(resumeText, "warehouse", "order picking");
+
+  const first = [];
+  if (hasLoad) first.push("loading and unloading trucks");
+  if (hasMaterial) first.push("handling materials");
+  if (hasWrap) first.push("wrapping pallets");
+  if (hasInventory) first.push("organizing inventory");
+  if (hasShipping) first.push("supporting shipping and receiving operations");
+  if (hasPicking) first.push("picking or packing orders");
+
+  const second = [];
+  if (hasPalletJack) second.push("using pallet jacks");
+  if (hasRF) second.push("using RF scanners");
+  if (hasSafety) second.push("following warehouse safety procedures");
+  second.push("keeping work areas clean and organized");
+
+  const summary = `Warehouse associate with experience ${makeSentence(first, "handling warehouse materials and inventory")}. Skilled in ${makeSentence(second, "safe material handling and warehouse organization")}.`;
+
+  const bullets = [];
+  if (hasLoad) bullets.push("Loaded and unloaded trucks in a fast-paced warehouse environment.");
+  if (hasMaterial) bullets.push("Handled materials safely while keeping warehouse areas organized and ready for daily operations.");
+  if (hasPalletJack) bullets.push("Used pallet jacks to move materials safely throughout the warehouse.");
+  if (hasWrap || hasInventory) bullets.push(`${makeSentence([hasWrap ? "wrapped pallets" : "", hasInventory ? "organized inventory" : ""]).replace(/^./, char => char.toUpperCase())} to support accurate warehouse flow.`);
+  if (hasShipping) bullets.push("Supported shipping and receiving operations while keeping work areas clean and organized.");
+  if (hasSafety) bullets.push("Followed warehouse safety procedures while completing loading, material handling, and inventory tasks.");
+  if (hasRF) bullets.push("Used RF scanners to track, verify, or move warehouse materials accurately.");
+  if (hasPicking) bullets.push("Picked, packed, or organized orders while maintaining accuracy and steady work flow.");
+
+  return { summary, bullets: cleanList(bullets).slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
+function buildCustomerServiceWording(resumeText, diagnosisCategory, selectedLabel = "Customer Service Representative") {
+  const hasCustomer = hasResumeProof(resumeText, "customer_service", "customer service");
+  const hasPhone = hasResumeProof(resumeText, "customer_service", "phone support");
+  const hasCRM = hasResumeProof(resumeText, "customer_service", "CRM");
+  const hasComplaint = hasResumeProof(resumeText, "customer_service", "de-escalation");
+  const hasCash = hasResumeProof(resumeText, "customer_service", "cash handling");
+  const hasSales = hasResumeProof(resumeText, "customer_service", "sales");
+
+  const first = [];
+  if (hasCustomer) first.push("assisting customers with questions, purchases, returns, or service needs");
+  if (hasPhone) first.push("answering phone calls");
+  if (hasComplaint) first.push("resolving complaints and escalating issues when needed");
+  if (hasCash) first.push("processing POS transactions and handling cash accurately");
+  if (hasSales) first.push("supporting sales goals and product questions");
+
+  const second = [];
+  if (hasCustomer) second.push("professional customer service");
+  if (hasPhone) second.push("phone support");
+  if (hasCRM) second.push("CRM documentation");
+  if (hasComplaint) second.push("complaint resolution");
+  if (hasCash) second.push("cash handling and POS systems");
+  if (hasSales) second.push("sales support");
+
+  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Customer Service Representative";
+  const summary = `${title} with experience ${makeSentence(first, "assisting customers and resolving service needs")}. Skilled in ${makeSentence(second, "professional communication and customer support")}.`;
+
+  const bullets = [];
+  if (hasCustomer) bullets.push("Assisted customers with purchases, returns, product questions, and service issues.");
+  if (hasPhone) bullets.push("Answered phone calls, provided accurate information, and documented customer needs.");
+  if (hasComplaint) bullets.push("Resolved customer complaints by listening, clarifying the issue, and escalating concerns when needed.");
+  if (hasCash) bullets.push("Used POS systems to process transactions and handle cash accurately.");
+  if (hasCRM) bullets.push("Updated CRM records or customer notes to keep service details accurate.");
+  if (hasSales) bullets.push("Supported sales goals by answering product questions and helping customers choose the right options.");
+
+  return { summary, bullets: cleanList(bullets).slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
+function buildDrivingWording(resumeText, diagnosisCategory, selectedLabel = "Truck Driver") {
+  const hasCDL = hasResumeProof(resumeText, "driving", "CDL");
+  const hasDOT = hasResumeProof(resumeText, "driving", "DOT");
+  const hasSafe = hasResumeProof(resumeText, "driving", "safe driving");
+  const hasPre = hasResumeProof(resumeText, "driving", "pre-trip inspection");
+  const hasPost = hasResumeProof(resumeText, "driving", "post-trip inspection");
+  const hasRoute = hasResumeProof(resumeText, "driving", "route delivery");
+  const hasTWIC = hasResumeProof(resumeText, "driving", "TWIC");
+  const normalized = normalize(resumeText);
+  const hasPaperwork = normalized.includes("paperwork") || normalized.includes("delivery paperwork") || normalized.includes("documents") || normalized.includes("documentation");
+  const hasDispatch = normalized.includes("dispatch") || normalized.includes("communicated delays") || normalized.includes("communicate delays");
+  const hasFreight = normalized.includes("freight") || normalized.includes("delivered freight") || normalized.includes("deliver freight");
+  const hasSecured = normalized.includes("secured materials") || normalized.includes("secure materials") || normalized.includes("loaded and secured") || normalized.includes("secured freight");
+
+  const first = [];
+  if (hasPre) first.push("completing pre-trip inspections");
+  if (hasPost) first.push("completing post-trip inspections");
+  if (hasDOT) first.push("following DOT safety procedures");
+  if (hasSafe || hasFreight || hasRoute) first.push(hasFreight ? "delivering freight safely" : "driving safely on assigned routes");
+  if (hasRoute) first.push("planning routes");
+  if (hasDispatch) first.push("communicating delays");
+  if (hasPaperwork) first.push("maintaining delivery paperwork");
+
+  const credentials = [];
+  if (hasCDL) credentials.push("CDL-A or CDL credentials");
+  if (hasTWIC) credentials.push("TWIC card");
+
+  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Truck Driver";
+  const sentenceOne = `${title} with experience ${makeSentence(first, "completing safe delivery routes and inspection tasks")}.`;
+  const sentenceTwo = credentials.length ? `Holds ${joinEnglish(credentials)} with experience ${makeSentence([hasSecured ? "loading and securing materials" : "", hasPaperwork ? "maintaining delivery paperwork" : "", hasDispatch ? "communicating with dispatch or customers" : ""], "supporting safe route delivery")}.` : `Skilled in ${makeSentence([hasDOT ? "DOT procedures" : "", hasPre ? "pre-trip inspections" : "", hasPost ? "post-trip inspections" : "", hasRoute ? "route planning" : ""], "safe route delivery and inspection procedures")}.`;
+
+  const bullets = [];
+  if (hasPre || hasPost) bullets.push(`Completed ${makeSentence([hasPre ? "pre-trip inspections" : "", hasPost ? "post-trip inspections" : ""])} before and after delivery routes.`);
+  if (hasDOT || hasSafe || hasFreight) bullets.push(`${hasFreight ? "Delivered freight safely" : "Operated vehicles safely"} while following ${hasDOT ? "DOT procedures and company policies" : "company safety procedures"}.`);
+  if (hasRoute || hasDispatch || hasPaperwork) bullets.push(`${makeSentence([hasRoute ? "planned routes" : "", hasDispatch ? "communicated delays" : "", hasPaperwork ? "maintained accurate delivery paperwork" : ""]).replace(/^./, char => char.toUpperCase())}.`);
+  if (hasSecured) bullets.push("Loaded and secured materials before leaving the warehouse or delivery location.");
+  if (hasTWIC) bullets.push("Maintained TWIC credentials for transportation, port, or secure-site access requirements.");
+  if (hasCDL && bullets.length < 3) bullets.push("Maintained CDL credentials while completing safe driving, inspection, or delivery responsibilities.");
+
+  return { summary: `${sentenceOne} ${sentenceTwo}`, bullets: cleanList(bullets).slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
+function buildOfficeWording(resumeText, diagnosisCategory, selectedLabel = "Office Assistant") {
+  const hasData = hasResumeProof(resumeText, "office", "data entry");
+  const hasRecords = hasResumeProof(resumeText, "office", "records");
+  const hasScheduling = hasResumeProof(resumeText, "office", "scheduling");
+  const hasEmail = hasResumeProof(resumeText, "office", "email");
+  const hasOffice = hasResumeProof(resumeText, "office", "Microsoft Office");
+  const hasPhone = hasResumeProof(resumeText, "office", "phone calls");
+  const title = selectedLabel && selectedLabel !== "General / Any Job" ? selectedLabel : "Office Assistant";
+  const summary = `${title} with experience ${makeSentence([hasData ? "entering data accurately" : "", hasRecords ? "maintaining records and files" : "", hasScheduling ? "scheduling appointments or calendar items" : "", hasEmail ? "handling email communication" : "", hasPhone ? "answering phone calls" : ""], "supporting office tasks and records")}. Skilled in ${makeSentence([hasOffice ? "Microsoft Office" : "", hasData ? "data entry" : "", hasRecords ? "records management" : "", hasScheduling ? "scheduling" : ""], "organization and office support")}.`;
+  const bullets = [];
+  if (hasData) bullets.push("Entered data accurately into records, spreadsheets, or office systems.");
+  if (hasRecords) bullets.push("Maintained records, files, or documents so information stayed organized and easy to find.");
+  if (hasScheduling) bullets.push("Scheduled appointments, calendar items, or office tasks while keeping details organized.");
+  if (hasEmail || hasPhone) bullets.push(`${makeSentence([hasEmail ? "handled email communication" : "", hasPhone ? "answered phone calls" : ""]).replace(/^./, char => char.toUpperCase())} in a professional office setting.`);
+  if (hasOffice) bullets.push("Used Microsoft Office tools such as Word, Excel, or spreadsheets to support office work.");
+  return { summary, bullets: cleanList(bullets).slice(0, diagnosisCategory === "medium_match" ? 3 : 4) };
+}
+
 function buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel) {
   const blueprint = FAMILY_WORDING_BLUEPRINTS[family];
   if (!blueprint) return { summary: "", bullets: [] };
@@ -839,19 +988,48 @@ function buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms
   const title = titleForWording(selectedLabel, family);
   const summaryParts = cleanList(proved.map(item => item.summary)).slice(0, 5);
   const skillParts = cleanList(proved.map(item => item.skill)).slice(0, 6);
-  const summarySentences = [];
-  if (summaryParts.length) summarySentences.push(`${title} ${blueprint.summaryLead} ${joinEnglish(summaryParts)}.`);
-  if (skillParts.length >= 2) summarySentences.push(`${blueprint.skillLead} ${joinEnglish(skillParts)}.`);
 
+  const summary = `${title} with experience ${joinEnglish(summaryParts)}. Skilled in ${joinEnglish(skillParts)}.`;
   const bullets = cleanList(proved.map(item => item.bullet)).slice(0, diagnosisCategory === "medium_match" ? 3 : 4);
-  return { summary: summarySentences.join(" "), bullets };
+  return { summary, bullets };
 }
 
 function buildTemplateWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel = "") {
   if (family === "manufacturing") return buildManufacturingWording(resumeText, diagnosisCategory);
   if (family === "healthcare") return buildHealthcareWording(resumeText, diagnosisCategory);
   if (family === "warehouse") return buildWarehouseWording(resumeText, diagnosisCategory);
+  if (family === "customer_service") return buildCustomerServiceWording(resumeText, diagnosisCategory, selectedLabel);
+  if (family === "driving") return buildDrivingWording(resumeText, diagnosisCategory, selectedLabel);
+  if (family === "office") return buildOfficeWording(resumeText, diagnosisCategory, selectedLabel);
   return buildBlueprintWording(resumeText, family, diagnosisCategory, proofTerms, selectedLabel);
+}
+
+function sanitizeCopyReadyOutput(output, analysis) {
+  if (!output || !["strong_match", "good_match", "medium_match"].includes(analysis.diagnosis.category)) return output;
+  if (!outputHasBannedCopyLanguage(output)) return output;
+
+  const familyForWording = analysis.selectedFamily === "general" ? analysis.jobFamily.family : analysis.selectedFamily;
+  const rebuilt = buildTemplateWording(analysis.resumeText, familyForWording, analysis.diagnosis.category, analysis.evidenceTerms, analysis.selected.label);
+  if (rebuilt.summary && rebuilt.bullets.length >= 2 && !outputHasBannedCopyLanguage(rebuilt)) {
+    return {
+      summaryHeading: analysis.diagnosis.category === "medium_match" ? "Safe resume-ready summary" : "Resume-ready summary",
+      bulletHeading: analysis.diagnosis.category === "medium_match" ? "Safe resume-ready bullets" : "Resume-ready bullets",
+      summary: rebuilt.summary,
+      bullets: rebuilt.bullets
+    };
+  }
+
+  const proofNeeded = getProofNeeded(analysis.selectedFamily === "general" ? analysis.jobFamily.family : analysis.selectedFamily, analysis.keywordData.missing);
+  return {
+    summaryHeading: "Right Direction",
+    bulletHeading: "Proof needed before rewrite",
+    summary: `The app blocked generic copy-ready wording for ${analysis.selected.label}. Add stronger direct proof before copying a resume summary.`,
+    bullets: [
+      analysis.evidenceTerms.length ? `Resume proof found: ${joinEnglish(analysis.evidenceTerms.slice(0, 6))}.` : "Add direct job duties before rewriting this resume.",
+      proofNeeded.length ? `Add ${joinEnglish(proofNeeded.slice(0, 5))} only if those details are true.` : "Use job-post wording only where the resume supports it.",
+      "Copy-ready sections must sound like resume language, not app instructions."
+    ]
+  };
 }
 
 function buildOutput(analysis) {
@@ -916,16 +1094,12 @@ function buildOutput(analysis) {
     };
   }
 
-  const mediumNote = diagnosis.category === "medium_match"
-    ? `\n\nUse this as safe wording only. Add ${joinEnglish(proofNeeded.slice(0, 4))} only if the resume can prove it.`
-    : "";
-
-  return {
-    summaryHeading: diagnosis.category === "medium_match" ? "Safe ATS wording" : "ATS-friendly summary",
-    bulletHeading: diagnosis.category === "medium_match" ? "Safe resume bullets" : "Copy-ready resume bullets",
-    summary: `${wording.summary}${mediumNote}`,
+  return sanitizeCopyReadyOutput({
+    summaryHeading: diagnosis.category === "medium_match" ? "Safe resume-ready summary" : "Resume-ready summary",
+    bulletHeading: diagnosis.category === "medium_match" ? "Safe resume-ready bullets" : "Resume-ready bullets",
+    summary: wording.summary,
     bullets: wording.bullets
-  };
+  }, analysis);
 }
 
 function analyzeResume(resumeText, jobText, jobType) {
