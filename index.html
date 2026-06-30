@@ -7,29 +7,92 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="hero">
+  <header class="hero" id="home">
     <nav class="nav">
-      <div class="brand">
+      <a class="brand" href="#home" aria-label="GET ME PAST ATS home">
         <span class="logo-mark">G</span>
         <span>GET ME PAST ATS</span>
-      </div>
-      <div class="nav-actions">
-        <span class="nav-user" id="navUser">Guest mode</span>
-        <a class="nav-link" href="#account">Sign In</a>
-        <a class="nav-link" href="#tracker">Application Tracker</a>
-      </div>
+      </a>
+
+      <button class="menu-toggle" id="menuToggle" type="button" aria-label="Open menu" aria-expanded="false">
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <aside class="nav-menu" id="navMenu" aria-label="Site menu" aria-hidden="true">
+        <div class="drawer-top">
+          <div>
+            <p class="nav-menu-label" id="navUser">Not signed in</p>
+            <h2>Menu</h2>
+          </div>
+          <button class="drawer-close" id="menuClose" type="button" aria-label="Close menu">×</button>
+        </div>
+
+        <div class="drawer-links">
+          <a class="nav-link" href="#home">Home</a>
+          <a class="nav-link" href="#analyzer">Resume Analyzer</a>
+          <a class="nav-link" href="#tracker">Application Tracker</a>
+        </div>
+
+        <div class="drawer-account" id="account">
+          <div class="auth-card" id="authCard">
+            <form id="accountForm" class="account-form clean-account-form">
+              <p class="mini-eyebrow" id="authEyebrow">Create account</p>
+              <h3 id="authTitle">Create your free account</h3>
+              <p class="small-note" id="authHelp">Save your job applications and come back later from any device.</p>
+
+              <label class="auth-field" id="nameField">
+                <span>Name</span>
+                <input id="userName" autocomplete="name" placeholder="Your name" />
+              </label>
+
+              <label class="auth-field">
+                <span>Email</span>
+                <input id="userEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+              </label>
+
+              <label class="auth-field">
+                <span>Password</span>
+                <div class="password-row">
+                  <input id="userPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters" minlength="6" required />
+                  <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show password">Show</button>
+                </div>
+              </label>
+
+              <button class="button primary full-button" id="accountSubmitBtn" type="submit">Create Account</button>
+
+              <p class="auth-switch" id="authSwitchText">
+                Already have an account?
+                <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>
+              </p>
+
+              <button class="link-button" id="passwordResetBtn" type="button" hidden>Forgot password?</button>
+              <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+
+          <div class="account-status-card" id="accountStatusCard" hidden>
+            <p class="card-label">Account</p>
+            <h3 id="accountStatus">You're signed in</h3>
+            <p id="accountNote" class="small-note">Your job applications are saved to your account.</p>
+            <button class="button ghost" id="signOutBtn" type="button">Sign Out</button>
+          </div>
+        </div>
+      </aside>
     </nav>
+    <div class="menu-backdrop" id="menuBackdrop" hidden></div>
 
     <section class="hero-grid">
       <div>
         <p class="eyebrow">Resume + Job Post Analyzer</p>
         <h1>Stop applying blind. See why your resume might get filtered out.</h1>
         <p class="hero-copy">
-          Paste your resume and a job description. This tool gives you an ATS match score,
-          missing keywords, recruiter red flags, and stronger resume wording you can copy.
+          Paste your resume and a job description. Get a match score, missing keywords, recruiter red flags, and stronger resume wording you can copy.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="#analyzer">Analyze Resume</a>
+          <a class="button primary" href="#analyzer">Analyze My Resume</a>
+          <a class="button secondary" href="#tracker">Track Applications</a>
           <button class="button secondary" id="loadDemo">Load Demo</button>
         </div>
       </div>
@@ -47,7 +110,7 @@
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
         <h2>Paste your resume and the job description</h2>
-        <p>Resume analysis runs in your browser. Saved applications can sync to Firebase after you connect your project.</p>
+        <p>Paste both pieces below. Then save the job to your tracker after you apply.</p>
       </div>
 
       <div class="input-grid">
@@ -171,62 +234,11 @@
       </div>
     </section>
 
-    <section class="panel" id="account">
-      <div class="section-heading">
-        <p class="eyebrow">Account</p>
-        <h2>Save your job tracker with one clean login</h2>
-        <p>Create a free account once. After that, users can sign back in and keep their applications saved in Firebase.</p>
-      </div>
-
-      <div class="account-grid clean-account-grid">
-        <div class="auth-card">
-          <div class="auth-tabs" role="tablist" aria-label="Account mode">
-            <button class="auth-tab active" id="createModeBtn" type="button">Create account</button>
-            <button class="auth-tab" id="signInModeBtn" type="button">Sign in</button>
-          </div>
-
-          <form id="accountForm" class="account-form clean-account-form">
-            <h3 id="authTitle">Create your account</h3>
-            <p class="small-note" id="authHelp">New here? Start with Create account. Use Sign in only after the account already exists.</p>
-
-            <label class="auth-field" id="nameField">
-              <span>Name</span>
-              <input id="userName" autocomplete="name" placeholder="Your name" />
-            </label>
-
-            <label class="auth-field">
-              <span>Email</span>
-              <input id="userEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
-            </label>
-
-            <label class="auth-field">
-              <span>Password</span>
-              <div class="password-row">
-                <input id="userPassword" type="password" autocomplete="current-password" placeholder="At least 6 characters" minlength="6" required />
-                <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show password">Show</button>
-              </div>
-            </label>
-
-            <button class="button primary full-button" id="accountSubmitBtn" type="submit">Create Account</button>
-            <button class="link-button" id="passwordResetBtn" type="button" hidden>Forgot password?</button>
-            <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-
-        <div class="account-status-card">
-          <p class="card-label">Current account</p>
-          <h3 id="accountStatus">Guest mode</h3>
-          <p id="accountNote" class="small-note">Create an account to save applications in the cloud.</p>
-          <button class="button ghost" id="signOutBtn" type="button" hidden>Sign Out</button>
-        </div>
-      </div>
-    </section>
-
     <section class="panel" id="tracker">
       <div class="section-heading">
         <p class="eyebrow">Step 3</p>
         <h2>Application tracker</h2>
-        <p id="trackerNote">Track where you applied, pay, status, and follow-up dates. Sign in to sync your list with Firebase.</p>
+        <p id="trackerNote">Track where you applied, pay, status, and follow-up dates. Sign in from the menu to save your list to your account.</p>
       </div>
 
       <form id="trackerForm" class="tracker-form">
@@ -234,12 +246,13 @@
         <input id="role" placeholder="Job title" required />
         <input id="pay" placeholder="Pay, ex: $20.50/hr" />
         <select id="status">
+          <option>Saved</option>
           <option>Applied</option>
-          <option>Phone Interview</option>
-          <option>In-Person Interview</option>
+          <option>Interview</option>
           <option>Offer</option>
           <option>Rejected</option>
           <option>Follow Up</option>
+          <option>Hired</option>
         </select>
         <button class="button primary" type="submit">Add Job</button>
       </form>

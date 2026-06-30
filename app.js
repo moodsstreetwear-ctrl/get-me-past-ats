@@ -570,37 +570,40 @@ function setAuthMessage(message = "", type = "") {
 function setAuthMode(mode) {
   authMode = mode === "signin" ? "signin" : "create";
 
-  const createBtn = document.getElementById("createModeBtn");
-  const signInBtn = document.getElementById("signInModeBtn");
   const title = document.getElementById("authTitle");
+  const eyebrow = document.getElementById("authEyebrow");
   const help = document.getElementById("authHelp");
   const nameField = document.getElementById("nameField");
   const nameInput = document.getElementById("userName");
   const passwordInput = document.getElementById("userPassword");
   const submitBtn = document.getElementById("accountSubmitBtn");
   const resetBtn = document.getElementById("passwordResetBtn");
-
-  createBtn?.classList.toggle("active", authMode === "create");
-  signInBtn?.classList.toggle("active", authMode === "signin");
+  const switchText = document.getElementById("authSwitchText");
 
   if (authMode === "create") {
-    title.textContent = "Create your account";
-    help.textContent = "New here? Start with Create account. Use Sign in only after the account already exists.";
+    eyebrow.textContent = "Create account";
+    title.textContent = "Create your free account";
+    help.textContent = "Save your job applications and come back later from any device.";
     submitBtn.textContent = "Create Account";
     nameField.hidden = false;
     nameInput.required = true;
     passwordInput.autocomplete = "new-password";
     resetBtn.hidden = true;
+    switchText.innerHTML = 'Already have an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>';
   } else {
+    eyebrow.textContent = "Sign in";
     title.textContent = "Welcome back";
-    help.textContent = "Already made an account? Sign in with the same email and password.";
+    help.textContent = "Access your saved job applications.";
     submitBtn.textContent = "Sign In";
     nameField.hidden = true;
     nameInput.required = false;
     passwordInput.autocomplete = "current-password";
     resetBtn.hidden = false;
+    switchText.innerHTML = 'Need an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Create one</button>';
   }
 
+  const switchBtn = document.getElementById("switchAuthBtn");
+  switchBtn?.addEventListener("click", () => setAuthMode(authMode === "create" ? "signin" : "create"));
   setAuthMessage("");
 }
 
@@ -613,7 +616,7 @@ function formatAuthError(error) {
   if (code.includes("email-already-in-use")) return "That email already has an account. Switch to Sign in instead.";
   if (code.includes("weak-password")) return "Password must be at least 6 characters.";
   if (code.includes("invalid-email")) return "Enter a valid email address.";
-  if (code.includes("operation-not-allowed")) return "Email/password is not enabled in Firebase Authentication yet.";
+  if (code.includes("operation-not-allowed")) return "Account sign-in is not ready yet. Try again later.";
   return error?.message || "Something went wrong. Try again.";
 }
 
@@ -634,32 +637,36 @@ function renderAccount() {
   const trackerNote = document.getElementById("trackerNote");
   const signOutBtn = document.getElementById("signOutBtn");
   const accountForm = document.getElementById("accountForm");
+  const authCard = document.getElementById("authCard");
+  const accountStatusCard = document.getElementById("accountStatusCard");
 
   if (!firebaseEnabled || !auth || !db) {
-    navUser.textContent = "Local mode";
-    accountStatus.textContent = "Firebase not connected yet";
-    accountNote.textContent = "The app still works locally. Add your Firebase config to firebase-config.js to turn on real cloud accounts.";
-    trackerNote.textContent = "Local tracker mode: saved applications stay on this browser until Firebase is connected.";
+    navUser.textContent = "Account setup needed";
+    authCard.hidden = false;
+    accountStatusCard.hidden = true;
+    trackerNote.textContent = "You can test the analyzer now. Account saving is still being set up.";
+    setAuthMessage("Account saving is still being set up. Try again soon.", "error");
     signOutBtn.hidden = true;
     return;
   }
 
   if (user) {
-    navUser.textContent = `Signed in: ${user.name}`;
-    accountStatus.textContent = `${user.name}`;
-    accountNote.textContent = `${user.email} — applications are saved to your Firebase cloud database.`;
-    trackerNote.textContent = `Tracking applications for ${user.name}. Data syncs with Firebase.`;
+    navUser.textContent = `Signed in as ${user.name}`;
+    accountStatus.textContent = `Signed in as ${user.name}`;
+    accountNote.textContent = `${user.email} — your applications are saved to your account.`;
+    trackerNote.textContent = `Tracking applications for ${user.name}.`;
+    authCard.hidden = true;
+    accountStatusCard.hidden = false;
     signOutBtn.hidden = false;
     accountForm.reset();
   } else {
-    navUser.textContent = "Not signed in";
-    accountStatus.textContent = "No user signed in";
-    accountNote.textContent = "Create an account or sign in to save your tracker in Firebase.";
-    trackerNote.textContent = "Sign in above to save applications to the cloud. You can still analyze resumes without signing in.";
+    navUser.textContent = "Create or sign in";
+    trackerNote.textContent = "Sign in from the menu to save applications to your account.";
+    authCard.hidden = false;
+    accountStatusCard.hidden = true;
     signOutBtn.hidden = true;
   }
 }
-
 function renderTracker() {
   const rows = document.getElementById("trackerRows");
   const items = loadTracker();
@@ -703,9 +710,9 @@ async function signIn() {
     }));
 
     document.getElementById("accountForm").reset();
-    setAuthMessage("Signed in locally on this browser.", "success");
     renderAccount();
     renderTracker();
+    returnHomeAfterAuth("Signed in.");
     return;
   }
 
@@ -719,7 +726,7 @@ async function signIn() {
 
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    setAuthMessage("Signed in successfully.", "success");
+    returnHomeAfterAuth("Signed in. Welcome back.");
   } catch (error) {
     setAuthMessage(formatAuthError(error), "error");
   }
@@ -729,7 +736,7 @@ async function createAccount() {
   setAuthMessage("Creating account...", "");
 
   if (!firebaseEnabled || !auth || !db) {
-    setAuthMessage("Firebase is not connected yet. Upload firebase-config.js and enable Authentication first.", "error");
+    setAuthMessage("Account saving is still being set up. Try again soon.", "error");
     return;
   }
 
@@ -751,8 +758,8 @@ async function createAccount() {
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(credential.user, { displayName: name });
     currentUser = credential.user;
-    setAuthMessage("Account created. Your tracker will save to the cloud.", "success");
     renderAccount();
+    returnHomeAfterAuth("Account created. Your applications are saved to your account.");
   } catch (error) {
     setAuthMessage(formatAuthError(error), "error");
   }
@@ -760,7 +767,7 @@ async function createAccount() {
 
 async function resetPassword() {
   if (!firebaseEnabled || !auth) {
-    setAuthMessage("Firebase is not connected yet.", "error");
+    setAuthMessage("Account saving is still being set up.", "error");
     return;
   }
 
@@ -781,12 +788,15 @@ async function resetPassword() {
 async function signOut() {
   if (firebaseEnabled && auth) {
     await firebaseSignOut(auth);
+    closeMenu();
+    document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
 
   localStorage.removeItem("gmpt_current_user");
   renderAccount();
   renderTracker();
+  closeMenu();
 }
 
 function exportTrackerCSV() {
@@ -859,7 +869,7 @@ function watchCloudTracker() {
     renderTracker();
   }, error => {
     console.error(error);
-    alert("Could not load cloud tracker. Check Firestore rules and setup.");
+    alert("Could not load your saved applications. Try again in a minute.");
   });
 }
 
@@ -876,7 +886,7 @@ async function addApplication(event) {
 
   if (firebaseEnabled && db) {
     if (!currentUser) {
-      alert("Sign in first to save applications to Firebase.");
+      alert("Sign in from the menu first to save applications to your account.");
       return;
     }
 
@@ -925,6 +935,36 @@ function initAuthListener() {
   });
 }
 
+
+function openMenu(mode = null) {
+  const navMenu = document.getElementById("navMenu");
+  const backdrop = document.getElementById("menuBackdrop");
+  const toggle = document.getElementById("menuToggle");
+  if (mode) setAuthMode(mode);
+  navMenu.classList.add("open");
+  navMenu.setAttribute("aria-hidden", "false");
+  toggle.setAttribute("aria-expanded", "true");
+  backdrop.hidden = false;
+  document.body.classList.add("menu-open");
+}
+
+function closeMenu() {
+  const navMenu = document.getElementById("navMenu");
+  const backdrop = document.getElementById("menuBackdrop");
+  const toggle = document.getElementById("menuToggle");
+  navMenu.classList.remove("open");
+  navMenu.setAttribute("aria-hidden", "true");
+  toggle.setAttribute("aria-expanded", "false");
+  backdrop.hidden = true;
+  document.body.classList.remove("menu-open");
+}
+
+function returnHomeAfterAuth(message = "") {
+  if (message) setAuthMessage(message, "success");
+  closeMenu();
+  document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function init() {
   document.getElementById("analyzeBtn").addEventListener("click", analyzeAndRender);
 
@@ -952,9 +992,14 @@ function init() {
     });
   });
 
+  document.getElementById("menuToggle").addEventListener("click", () => openMenu());
+  document.getElementById("menuClose").addEventListener("click", closeMenu);
+  document.getElementById("menuBackdrop").addEventListener("click", closeMenu);
+  document.querySelectorAll(".drawer-links .nav-link").forEach(link => {
+    link.addEventListener("click", closeMenu);
+  });
+
   document.getElementById("accountForm").addEventListener("submit", handleAccountSubmit);
-  document.getElementById("createModeBtn").addEventListener("click", () => setAuthMode("create"));
-  document.getElementById("signInModeBtn").addEventListener("click", () => setAuthMode("signin"));
   document.getElementById("passwordResetBtn").addEventListener("click", resetPassword);
   document.getElementById("togglePasswordBtn").addEventListener("click", () => {
     const input = document.getElementById("userPassword");
