@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, find missing keywords, catch red flags, and track applications." />
   <title>GET ME PAST ATS</title>
-  <link rel="stylesheet" href="styles.css?v=menu-v2" />
+  <link rel="stylesheet" href="styles.css?v=professional-v1" />
 </head>
 <body>
   <header class="hero" id="home">
@@ -21,99 +22,152 @@
       </button>
     </nav>
 
+    <aside class="nav-menu" id="navMenu" aria-label="Site menu" aria-hidden="true">
+      <div class="drawer-top">
+        <div>
+          <p class="nav-menu-label" id="navUser">Not signed in</p>
+          <h2>Menu</h2>
+        </div>
+        <button class="drawer-close" id="menuClose" type="button" aria-label="Close menu">×</button>
+      </div>
 
+      <div class="drawer-links">
+        <a class="menu-item" href="#home">Home</a>
+        <a class="menu-item" href="#analyzer">Resume Analyzer</a>
+        <a class="menu-item" href="#tracker">Application Tracker</a>
+        <a class="menu-item" href="#about">About</a>
+        <a class="menu-item" href="#pricing">Free vs Pro</a>
+        <a class="menu-item" href="#privacy">Privacy</a>
+        <a class="menu-item" href="#terms">Terms</a>
+      </div>
 
-      <aside class="nav-menu" id="navMenu" aria-label="Site menu" aria-hidden="true">
-        <div class="drawer-top">
-          <div>
-            <p class="nav-menu-label" id="navUser">Not signed in</p>
-            <h2>Menu</h2>
-          </div>
-          <button class="drawer-close" id="menuClose" type="button" aria-label="Close menu">×</button>
+      <div class="drawer-account" id="account">
+        <div class="auth-card" id="authCard">
+          <form id="accountForm" class="account-form clean-account-form">
+            <p class="mini-eyebrow" id="authEyebrow">Create account</p>
+            <h3 id="authTitle">Create your free account</h3>
+            <p class="small-note" id="authHelp">Save your job applications and come back later from any device.</p>
+
+            <label class="auth-field" id="nameField">
+              <span>Name</span>
+              <input id="userName" autocomplete="name" placeholder="Your name" />
+            </label>
+
+            <label class="auth-field">
+              <span>Email</span>
+              <input id="userEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </label>
+
+            <label class="auth-field">
+              <span>Password</span>
+              <div class="password-row">
+                <input id="userPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters" minlength="6" required />
+                <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show password">Show</button>
+              </div>
+            </label>
+
+            <button class="button primary full-button" id="accountSubmitBtn" type="submit">Create Account</button>
+
+            <p class="auth-switch" id="authSwitchText">
+              Already have an account?
+              <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>
+            </p>
+
+            <button class="link-button" id="passwordResetBtn" type="button" hidden>Forgot password?</button>
+            <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
+          </form>
         </div>
 
-        <div class="drawer-links">
-          <a class="menu-item" href="#home">Home</a>
-          <a class="menu-item" href="#analyzer">Resume Analyzer</a>
-          <a class="menu-item" href="#tracker">Application Tracker</a>
+        <div class="account-status-card" id="accountStatusCard" hidden>
+          <p class="card-label">Account</p>
+          <h3 id="accountStatus">You're signed in</h3>
+          <p id="accountNote" class="small-note">Your job applications are saved to your account.</p>
+          <button class="button ghost" id="signOutBtn" type="button">Sign Out</button>
         </div>
-
-        <div class="drawer-account" id="account">
-          <div class="auth-card" id="authCard">
-            <form id="accountForm" class="account-form clean-account-form">
-              <p class="mini-eyebrow" id="authEyebrow">Create account</p>
-              <h3 id="authTitle">Create your free account</h3>
-              <p class="small-note" id="authHelp">Save your job applications and come back later from any device.</p>
-
-              <label class="auth-field" id="nameField">
-                <span>Name</span>
-                <input id="userName" autocomplete="name" placeholder="Your name" />
-              </label>
-
-              <label class="auth-field">
-                <span>Email</span>
-                <input id="userEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
-              </label>
-
-              <label class="auth-field">
-                <span>Password</span>
-                <div class="password-row">
-                  <input id="userPassword" type="password" autocomplete="new-password" placeholder="At least 6 characters" minlength="6" required />
-                  <button class="password-toggle" id="togglePasswordBtn" type="button" aria-label="Show password">Show</button>
-                </div>
-              </label>
-
-              <button class="button primary full-button" id="accountSubmitBtn" type="submit">Create Account</button>
-
-              <p class="auth-switch" id="authSwitchText">
-                Already have an account?
-                <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>
-              </p>
-
-              <button class="link-button" id="passwordResetBtn" type="button" hidden>Forgot password?</button>
-              <p class="auth-message" id="authMessage" role="status" aria-live="polite"></p>
-            </form>
-          </div>
-
-          <div class="account-status-card" id="accountStatusCard" hidden>
-            <p class="card-label">Account</p>
-            <h3 id="accountStatus">You're signed in</h3>
-            <p id="accountNote" class="small-note">Your job applications are saved to your account.</p>
-            <button class="button ghost" id="signOutBtn" type="button">Sign Out</button>
-          </div>
-        </div>
-      </aside>
+      </div>
+    </aside>
 
     <div class="menu-backdrop" id="menuBackdrop" hidden></div>
 
     <section class="hero-grid">
-      <div>
+      <div class="hero-copy-block">
         <p class="eyebrow">Resume + Job Post Analyzer</p>
-        <h1>Stop applying blind. See why your resume might get filtered out.</h1>
+        <h1>Stop applying blind.</h1>
         <p class="hero-copy">
-          Paste your resume and a job description. Get a match score, missing keywords, recruiter red flags, and stronger resume wording you can copy.
+          Compare your resume to any job post, find missing keywords, catch red flags, and track every application in one place.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="#analyzer">Analyze My Resume</a>
-          <a class="button secondary" href="#tracker">Track Applications</a>
-          <button class="button secondary" id="loadDemo">Load Demo</button>
+          <button class="button secondary" type="button" data-open-account>Create Free Account</button>
+          <button class="button ghost" id="loadDemo" type="button">Load Demo</button>
+        </div>
+        <div class="hero-proof" aria-label="Product highlights">
+          <span>Match score</span>
+          <span>Missing keywords</span>
+          <span>Red flags</span>
+          <span>Tracker</span>
         </div>
       </div>
 
-      <aside class="score-card preview-card" aria-label="ATS preview">
-        <p class="card-label">Starter MVP</p>
-        <div class="circle-score"><span>ATS</span></div>
-        <p>Built for real job seekers who need a human to finally see the resume.</p>
+      <aside class="product-card preview-card" aria-label="Product preview">
+        <div class="preview-topline">
+          <p class="card-label">Resume Report</p>
+          <span class="live-pill">Free</span>
+        </div>
+        <div class="circle-score"><span>72%</span></div>
+        <div class="mini-report-list">
+          <div><strong>Missing:</strong> RF scanner, inventory, safety</div>
+          <div><strong>Red flag:</strong> dates need review</div>
+          <div><strong>Next step:</strong> add stronger proof</div>
+        </div>
       </aside>
     </section>
   </header>
 
   <main>
+    <section class="feature-strip" id="features" aria-label="Key features">
+      <article class="feature-card">
+        <span class="feature-icon">01</span>
+        <h3>Resume Match Score</h3>
+        <p>See how close your resume is to the job before you waste another application.</p>
+      </article>
+      <article class="feature-card">
+        <span class="feature-icon">02</span>
+        <h3>Red Flag Scanner</h3>
+        <p>Catch missing dates, weak sections, thin wording, and other issues recruiters may notice.</p>
+      </article>
+      <article class="feature-card">
+        <span class="feature-icon">03</span>
+        <h3>Application Tracker</h3>
+        <p>Save companies, job titles, pay, status, and follow-up details so nothing gets lost.</p>
+      </article>
+    </section>
+
+    <section class="panel about-panel" id="about">
+      <div class="about-layout">
+        <div>
+          <p class="eyebrow">About</p>
+          <h2>Built by someone who got tired of applying and hearing nothing back.</h2>
+        </div>
+        <div class="about-copy">
+          <p>
+            I built GET ME PAST ATS because I know what it feels like to apply to job after job and never hear back. A lot of people are qualified, willing to work, and ready to learn, but their resume never makes it to a real person.
+          </p>
+          <p>
+            Most job seekers do not know how to tailor a resume to a job post. They do not know what keywords are missing, what dates look confusing, or what red flags a hiring system may catch before a recruiter ever sees them.
+          </p>
+          <p>
+            This tool was created to help regular people stop applying blind, fix weak spots, track applications, and prepare better before they apply.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <section class="panel" id="analyzer">
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
         <h2>Paste your resume and the job description</h2>
-        <p>Paste both pieces below. Then save the job to your tracker after you apply.</p>
+        <p>Paste both pieces below. Then use the report to improve your resume before you apply.</p>
       </div>
 
       <div class="input-grid">
@@ -189,9 +243,10 @@
       </div>
     </section>
 
-    <section class="results-grid" id="results" hidden>
+    <section class="results-grid report-grid" id="results" hidden>
       <article class="panel score-panel">
-        <p class="eyebrow">ATS Match</p>
+        <p class="eyebrow">Resume Report</p>
+        <h3>Your Match Score</h3>
         <div class="big-score"><span id="scoreValue">0</span>%</div>
         <p id="scoreMessage" class="score-message"></p>
         <div class="score-bar"><span id="scoreBar"></span></div>
@@ -210,7 +265,7 @@
       </article>
 
       <article class="panel">
-        <p class="eyebrow">Recruiter Red Flags</p>
+        <p class="eyebrow">Red Flags</p>
         <h3>Fix these before applying</h3>
         <ul class="notes" id="redFlags"></ul>
       </article>
@@ -281,12 +336,85 @@
         </table>
       </div>
     </section>
+
+    <section class="panel pricing-panel" id="pricing">
+      <div class="section-heading center-heading">
+        <p class="eyebrow">Coming Later</p>
+        <h2>Free now. Pro features later.</h2>
+        <p>This section builds trust before paywalls. Payments are not turned on yet.</p>
+      </div>
+      <div class="pricing-grid">
+        <article class="plan-card">
+          <p class="card-label">Free</p>
+          <h3>For quick checks</h3>
+          <ul class="plan-list">
+            <li>Resume match score</li>
+            <li>Missing keywords</li>
+            <li>Basic red flags</li>
+            <li>Application tracker</li>
+          </ul>
+        </article>
+        <article class="plan-card featured-plan">
+          <p class="card-label">Pro idea</p>
+          <h3>For serious job searching</h3>
+          <ul class="plan-list">
+            <li>Unlimited scans</li>
+            <li>PDF resume upload</li>
+            <li>Export tailored resume as PDF</li>
+            <li>Interview questions</li>
+            <li>Follow-up email generator</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="legal-grid" aria-label="Trust pages">
+      <article class="panel legal-card" id="privacy">
+        <p class="eyebrow">Privacy</p>
+        <h2>Simple privacy promise</h2>
+        <p>GET ME PAST ATS uses account information and saved application data to help users access their tracker. Resume text and job posts are used to show results inside the tool.</p>
+        <p>The goal is simple: help job seekers improve applications. Do not paste Social Security numbers, driver’s license numbers, banking details, or other sensitive personal information into the analyzer.</p>
+      </article>
+
+      <article class="panel legal-card" id="terms">
+        <p class="eyebrow">Terms</p>
+        <h2>No interview guarantee</h2>
+        <p>This tool can help improve resume wording, catch missing keywords, and organize job applications, but it cannot guarantee interviews, job offers, or hiring decisions.</p>
+        <p>Always keep your resume honest. Use the suggested wording as a starting point and edit it to match your real experience.</p>
+      </article>
+    </section>
   </main>
 
   <footer>
-    <p>GET ME PAST ATS — prototype. It helps improve wording, but no app can guarantee an interview.</p>
+    <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
   <script type="module" src="app.js?v=menu-v2"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const openAccountButtons = document.querySelectorAll("[data-open-account]");
+      const navMenu = document.getElementById("navMenu");
+      const backdrop = document.getElementById("menuBackdrop");
+      const toggle = document.getElementById("menuToggle");
+
+      function openAccountDrawer(event) {
+        event.preventDefault();
+        const title = document.getElementById("authTitle");
+        const switchBtn = document.getElementById("switchAuthBtn");
+
+        if (title && switchBtn && title.textContent.toLowerCase().includes("welcome back")) {
+          switchBtn.click();
+        }
+
+        navMenu.classList.add("open");
+        navMenu.setAttribute("aria-hidden", "false");
+        toggle.setAttribute("aria-expanded", "true");
+        backdrop.hidden = false;
+        document.body.classList.add("menu-open");
+      }
+
+      openAccountButtons.forEach(button => button.addEventListener("click", openAccountDrawer));
+    });
+  </script>
 </body>
 </html>
