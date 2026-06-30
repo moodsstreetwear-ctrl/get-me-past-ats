@@ -1572,22 +1572,48 @@ function returnHomeAfterAuth(message = "") {
   document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function clearAnalyzer() {
+  const resume = document.getElementById("resumeText");
+  const job = document.getElementById("jobText");
+  const results = document.getElementById("results");
+  const rewrite = document.getElementById("rewrite");
+  const scoreBar = document.getElementById("scoreBar");
+
+  if (resume) resume.value = "";
+  if (job) job.value = "";
+  if (results) results.hidden = true;
+  if (rewrite) rewrite.hidden = true;
+  if (scoreBar) scoreBar.style.width = "0%";
+
+  document.getElementById("missingKeywords")?.replaceChildren();
+  document.getElementById("matchedKeywords")?.replaceChildren();
+  document.getElementById("redFlags")?.replaceChildren();
+}
+
 function init() {
-  document.getElementById("analyzeBtn")?.addEventListener("click", analyzeAndRender);
+  const analyzeButton = document.getElementById("analyzeBtn");
+  const clearButton = document.getElementById("clearBtn");
 
-  document.getElementById("loadDemo")?.addEventListener("click", () => {
-    document.getElementById("resumeText").value = demoResume;
-    document.getElementById("jobText").value = demoJob;
-    document.getElementById("jobType").value = "machine_operator";
-    document.getElementById("analyzer").scrollIntoView({ behavior: "smooth" });
-  });
+  if (analyzeButton) {
+    analyzeButton.type = "button";
+    analyzeButton.onclick = event => {
+      event.preventDefault();
+      try {
+        analyzeAndRender();
+      } catch (error) {
+        console.error("Analyze failed:", error);
+        alert("Something stopped the resume report from loading. Refresh the page and try again.");
+      }
+    };
+  }
 
-  document.getElementById("clearBtn")?.addEventListener("click", () => {
-    document.getElementById("resumeText").value = "";
-    document.getElementById("jobText").value = "";
-    document.getElementById("results").hidden = true;
-    document.getElementById("rewrite").hidden = true;
-  });
+  if (clearButton) {
+    clearButton.type = "button";
+    clearButton.onclick = event => {
+      event.preventDefault();
+      clearAnalyzer();
+    };
+  }
 
   document.querySelectorAll(".copy-button").forEach(button => {
     button.addEventListener("click", async () => {
