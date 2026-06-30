@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, find missing keywords, catch red flags, and track applications." />
   <title>GET ME PAST ATS</title>
-  <link rel="stylesheet" href="styles.css?v=no-demo-v1" />
+  <link rel="stylesheet" href="styles.css?v=all-buttons-v1" />
 </head>
 <body>
   <header class="hero" id="home">
@@ -349,53 +349,149 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=button-fix-v1"></script>
+  <script type="module" src="app.js?v=all-buttons-v3"></script>
   <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const openAccountButtons = document.querySelectorAll("[data-open-account]");
-      const navMenu = document.getElementById("navMenu");
-      const backdrop = document.getElementById("menuBackdrop");
-      const toggle = document.getElementById("menuToggle");
+    // Emergency button fallback. It only turns on if app.js fails to initialize.
+    (function () {
+      const fallbackDelay = 900;
 
-      function openAccountDrawer(event) {
-        event.preventDefault();
-        const title = document.getElementById("authTitle");
-        const switchBtn = document.getElementById("switchAuthBtn");
-
-        if (title && switchBtn && title.textContent.toLowerCase().includes("welcome back")) {
-          switchBtn.click();
-        }
-
-        navMenu.classList.add("open");
-        navMenu.setAttribute("aria-hidden", "false");
+      function $(id) { return document.getElementById(id); }
+      function text(value) { return String(value || ""); }
+      function clean(value) { return text(value).trim(); }
+      function norm(value) { return text(value).toLowerCase().replace(/[^a-z0-9+#./ -]/g, " ").replace(/\s+/g, " ").trim(); }
+      function tokens(value) {
+        const stop = new Set(["the","and","for","with","you","your","are","that","this","from","will","have","has","job","jobs","work","team","must","able","ability","position","company","their","they","all","can","may","other","into","about","each","when","where","what","who","why","how","been","than","then","also","any","not","but","more","less","per","hour","week","day","shift","required","preferred","responsibilities","requirements","duties","skills","experience","years","year","candidate","applicant","role","include","including","perform","maintain","using","use","needed","needs"]);
+        return norm(value).split(" ").filter(word => word.length > 3 && !stop.has(word));
+      }
+      function escapeHTML(value) {
+        return text(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+      }
+      function openMenu() {
+        const menu = $("navMenu"), backdrop = $("menuBackdrop"), toggle = $("menuToggle");
+        if (!menu || !backdrop || !toggle) return;
+        menu.classList.add("open");
+        menu.setAttribute("aria-hidden", "false");
         toggle.setAttribute("aria-expanded", "true");
         backdrop.hidden = false;
         document.body.classList.add("menu-open");
       }
-
-      openAccountButtons.forEach(button => button.addEventListener("click", openAccountDrawer));
-
-      const drawerButtons = document.querySelectorAll("[data-drawer-page]");
-      drawerButtons.forEach(button => {
-        button.addEventListener("click", () => {
-          const targetId = button.getAttribute("data-drawer-page");
-          const targetPanel = document.getElementById(targetId);
-          const isOpen = targetPanel && !targetPanel.hidden;
-
-          document.querySelectorAll(".drawer-page-panel").forEach(panel => {
-            panel.hidden = true;
-          });
-          document.querySelectorAll(".drawer-page-button").forEach(item => {
-            item.classList.remove("active");
-          });
-
-          if (targetPanel && !isOpen) {
-            targetPanel.hidden = false;
-            button.classList.add("active");
-          }
-        });
-      });
-    });
+      function closeMenu() {
+        const menu = $("navMenu"), backdrop = $("menuBackdrop"), toggle = $("menuToggle");
+        if (!menu || !backdrop || !toggle) return;
+        menu.classList.remove("open");
+        menu.setAttribute("aria-hidden", "true");
+        toggle.setAttribute("aria-expanded", "false");
+        backdrop.hidden = true;
+        document.body.classList.remove("menu-open");
+      }
+      function fallbackAnalyze() {
+        const resume = clean($("resumeText") && $("resumeText").value);
+        const job = clean($("jobText") && $("jobText").value);
+        if (!resume || !job) { alert("Paste both your resume and the job description first."); return; }
+        const resumeNorm = norm(resume);
+        const jobTokens = tokens(job);
+        const counts = new Map();
+        jobTokens.forEach(word => counts.set(word, (counts.get(word) || 0) + 1));
+        const keywords = [...counts.entries()].sort((a,b) => b[1] - a[1]).slice(0, 24).map(([word]) => word);
+        const matched = keywords.filter(word => resumeNorm.includes(word));
+        const missing = keywords.filter(word => !resumeNorm.includes(word));
+        const score = keywords.length ? Math.min(100, Math.max(10, Math.round((matched.length / keywords.length) * 100))) : 50;
+        if ($("results")) $("results").hidden = false;
+        if ($("rewrite")) $("rewrite").hidden = false;
+        if ($("scoreValue")) $("scoreValue").textContent = score;
+        if ($("scoreMessage")) $("scoreMessage").textContent = score >= 70 ? "Good base. Add the most important missing words naturally before applying." : "The resume and job post are not speaking the same language yet.";
+        if ($("scoreBar")) $("scoreBar").style.width = score + "%";
+        if ($("missingKeywords")) $("missingKeywords").innerHTML = missing.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No major missing keywords found</span>';
+        if ($("matchedKeywords")) $("matchedKeywords").innerHTML = matched.slice(0, 18).map(word => `<span class="chip">${escapeHTML(word)}</span>`).join("") || '<span class="chip">No matches found yet</span>';
+        if ($("redFlags")) $("redFlags").innerHTML = [
+          missing.length > 10 ? "<strong>Keyword gap:</strong> add honest job-post wording where it fits." : "No major keyword red flag from the backup checker.",
+          !/20\d{2}|present|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i.test(resume) ? "<strong>Missing dates:</strong> add month/year dates if your resume does not show them." : "Dates appear to be present."
+        ].map(item => `<li>${item}</li>`).join("");
+        if ($("summaryOutput")) $("summaryOutput").textContent = "Reliable candidate with experience that should be tailored closer to this job post. Add honest proof for the strongest missing keywords: " + (missing.slice(0, 6).join(", ") || "no major keyword gaps found") + ".";
+        if ($("bulletOutput")) $("bulletOutput").textContent = "• Matched resume wording to the job post using relevant skills and experience.\n• Added honest examples for missing keywords where they apply.\n• Reviewed dates, sections, and measurable proof before applying.";
+        $("results") && $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      function clearAnalyzer() {
+        if ($("resumeText")) $("resumeText").value = "";
+        if ($("jobText")) $("jobText").value = "";
+        if ($("results")) $("results").hidden = true;
+        if ($("rewrite")) $("rewrite").hidden = true;
+        if ($("scoreValue")) $("scoreValue").textContent = "0";
+        if ($("scoreMessage")) $("scoreMessage").textContent = "";
+        if ($("scoreBar")) $("scoreBar").style.width = "0%";
+        ["missingKeywords","matchedKeywords","redFlags","summaryOutput","bulletOutput"].forEach(id => { if ($(id)) $(id).textContent = ""; });
+      }
+      function trackerKey() {
+        const user = JSON.parse(localStorage.getItem("gmpt_current_user") || "null");
+        return user && user.email ? "gmpt_tracker_" + norm(user.email).replace(/\s+/g, "_") : "gmpt_tracker_guest";
+      }
+      function loadTracker() { try { return JSON.parse(localStorage.getItem(trackerKey()) || "[]"); } catch (e) { return []; } }
+      function saveTracker(items) { localStorage.setItem(trackerKey(), JSON.stringify(items)); }
+      function renderTracker() {
+        const rows = $("trackerRows"); if (!rows) return;
+        const items = loadTracker();
+        rows.innerHTML = items.length ? items.map((item, index) => `<tr><td>${escapeHTML(item.date)}</td><td>${escapeHTML(item.company)}</td><td>${escapeHTML(item.role)}</td><td>${escapeHTML(item.pay || "—")}</td><td>${escapeHTML(item.status)}</td><td><button class="delete-row" data-index="${index}">Delete</button></td></tr>`).join("") : '<tr><td colspan="6">No applications tracked yet.</td></tr>';
+      }
+      function setAuthMessage(message, type) {
+        const el = $("authMessage"); if (!el) return;
+        el.textContent = message || "";
+        el.className = ("auth-message " + (type || "")).trim();
+      }
+      function renderAccount() {
+        let user = null;
+        try { user = JSON.parse(localStorage.getItem("gmpt_current_user") || "null"); } catch (e) {}
+        if ($("navUser")) $("navUser").textContent = user ? `Signed in as ${user.name}` : "Create or sign in";
+        if ($("trackerNote")) $("trackerNote").textContent = user ? `Tracking applications for ${user.name}.` : "You can use the tracker now. Sign in to keep your list separate.";
+        if ($("authCard")) $("authCard").hidden = Boolean(user);
+        if ($("accountStatusCard")) $("accountStatusCard").hidden = !user;
+        if ($("accountStatus")) $("accountStatus").textContent = user ? `Signed in as ${user.name}` : "You're signed in";
+        if ($("accountNote")) $("accountNote").textContent = user ? `${user.email} — saved on this device.` : "Your job applications are saved to your account.";
+      }
+      function setAuthMode(mode) {
+        const create = mode !== "signin";
+        if ($("authEyebrow")) $("authEyebrow").textContent = create ? "Create account" : "Sign in";
+        if ($("authTitle")) $("authTitle").textContent = create ? "Create your free account" : "Welcome back";
+        if ($("authHelp")) $("authHelp").textContent = create ? "Save your job applications and come back later." : "Access your saved job applications.";
+        if ($("accountSubmitBtn")) $("accountSubmitBtn").textContent = create ? "Create Account" : "Sign In";
+        if ($("nameField")) $("nameField").hidden = !create;
+        if ($("userName")) $("userName").required = create;
+        if ($("passwordResetBtn")) $("passwordResetBtn").hidden = create;
+        if ($("authSwitchText")) $("authSwitchText").innerHTML = create ? 'Already have an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Sign in</button>' : 'Need an account? <button class="link-button inline-link" id="switchAuthBtn" type="button">Create one</button>';
+        const switchBtn = $("switchAuthBtn"); if (switchBtn) switchBtn.onclick = () => setAuthMode(create ? "signin" : "create");
+        setAuthMessage("", "");
+      }
+      function installFallback() {
+        if (window.GMPT_APP_READY) return;
+        window.GMPT_FALLBACK_READY = true;
+        const analyzeBtn = $("analyzeBtn"); if (analyzeBtn) analyzeBtn.onclick = function(e){ e.preventDefault(); fallbackAnalyze(); };
+        const clearBtn = $("clearBtn"); if (clearBtn) clearBtn.onclick = function(e){ e.preventDefault(); clearAnalyzer(); };
+        const menuToggle = $("menuToggle"); if (menuToggle) menuToggle.onclick = function(){ $("navMenu") && $("navMenu").classList.contains("open") ? closeMenu() : openMenu(); };
+        const menuClose = $("menuClose"); if (menuClose) menuClose.onclick = closeMenu;
+        const backdrop = $("menuBackdrop"); if (backdrop) backdrop.onclick = closeMenu;
+        document.querySelectorAll("#navMenu .menu-item").forEach(link => link.addEventListener("click", closeMenu));
+        document.querySelectorAll("[data-open-account]").forEach(button => button.addEventListener("click", function(e){ e.preventDefault(); setAuthMode("create"); openMenu(); }));
+        document.querySelectorAll("[data-drawer-page]").forEach(button => button.addEventListener("click", function(){
+          const target = $(button.getAttribute("data-drawer-page"));
+          const open = target && !target.hidden;
+          document.querySelectorAll(".drawer-page-panel").forEach(panel => panel.hidden = true);
+          document.querySelectorAll(".drawer-page-button").forEach(item => item.classList.remove("active"));
+          if (target && !open) { target.hidden = false; button.classList.add("active"); }
+        }));
+        const togglePassword = $("togglePasswordBtn"); if (togglePassword) togglePassword.onclick = function(){ const input = $("userPassword"); if (!input) return; const showing = input.type === "text"; input.type = showing ? "password" : "text"; togglePassword.textContent = showing ? "Show" : "Hide"; };
+        setAuthMode("create");
+        const form = $("accountForm"); if (form) form.onsubmit = function(e){ e.preventDefault(); const email = clean($("userEmail") && $("userEmail").value).toLowerCase(); const name = clean($("userName") && $("userName").value) || email.split("@")[0] || "User"; if (!email) { setAuthMessage("Enter your email.", "error"); return; } localStorage.setItem("gmpt_current_user", JSON.stringify({name, email, signedInAt: new Date().toISOString()})); form.reset(); renderAccount(); renderTracker(); closeMenu(); };
+        const reset = $("passwordResetBtn"); if (reset) reset.onclick = () => setAuthMessage("Password reset needs Firebase. Try signing in or creating a new account.", "error");
+        const signOut = $("signOutBtn"); if (signOut) signOut.onclick = function(){ localStorage.removeItem("gmpt_current_user"); renderAccount(); renderTracker(); closeMenu(); };
+        const trackerForm = $("trackerForm"); if (trackerForm) trackerForm.onsubmit = function(e){ e.preventDefault(); const company = clean($("company") && $("company").value); const role = clean($("role") && $("role").value); if (!company || !role) return; const items = loadTracker(); items.unshift({date: new Date().toLocaleDateString(), company, role, pay: clean($("pay") && $("pay").value), status: $("status") ? $("status").value : "Saved"}); saveTracker(items); trackerForm.reset(); renderTracker(); };
+        const trackerRows = $("trackerRows"); if (trackerRows) trackerRows.onclick = function(e){ if (!e.target.matches(".delete-row")) return; const items = loadTracker(); items.splice(Number(e.target.dataset.index), 1); saveTracker(items); renderTracker(); };
+        const exportBtn = $("exportTrackerBtn"); if (exportBtn) exportBtn.onclick = function(){ const items = loadTracker(); if (!items.length) { alert("No applications to export yet."); return; } const rows = [["Date","Company","Role","Pay","Status"], ...items.map(i => [i.date,i.company,i.role,i.pay || "",i.status])]; const csv = rows.map(row => row.map(v => `"${text(v).replace(/"/g,'""')}"`).join(",")).join("\n"); const blob = new Blob([csv], {type:"text/csv;charset=utf-8"}); const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "job-tracker.csv"; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); };
+        const clearTracker = $("clearTrackerBtn"); if (clearTracker) clearTracker.onclick = function(){ if (!loadTracker().length) return; if (!confirm("Clear tracker? This cannot be undone.")) return; saveTracker([]); renderTracker(); };
+        document.querySelectorAll(".copy-button").forEach(button => button.onclick = function(){ const target = $(button.dataset.copy); const value = target ? target.textContent : ""; if (navigator.clipboard && value) navigator.clipboard.writeText(value).catch(function(){}); const old = button.textContent; button.textContent = "Copied"; setTimeout(() => button.textContent = old, 1200); });
+        renderAccount();
+        renderTracker();
+      }
+      document.addEventListener("DOMContentLoaded", function () { setTimeout(installFallback, fallbackDelay); });
+    })();
   </script>
 </body>
 </html>

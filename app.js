@@ -1,27 +1,28 @@
-import { firebaseConfig } from "./firebase-config.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-import {
-  getAuth,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-  updateProfile,
-  sendPasswordResetEmail
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp,
-  getDocs,
-  writeBatch
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+// GET ME PAST ATS
+// Analyzer code loads first so the score and clear buttons work even if account saving has a problem.
+window.GMPT_APP_VERSION = "all-buttons-v3";
+
+
+let initializeApp = null;
+let getAuth = null;
+let createUserWithEmailAndPassword = null;
+let signInWithEmailAndPassword = null;
+let firebaseSignOut = null;
+let onAuthStateChanged = null;
+let updateProfile = null;
+let sendPasswordResetEmail = null;
+
+let getFirestore = null;
+let collection = null;
+let addDoc = null;
+let deleteDoc = null;
+let doc = null;
+let onSnapshot = null;
+let query = null;
+let orderBy = null;
+let serverTimestamp = null;
+let getDocs = null;
+let writeBatch = null;
 
 const stopWords = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -975,7 +976,9 @@ function keywordDetails(item) {
   return `${importanceLabel} • ${matchLabel} • Confidence: ${item.confidence || 0}%`;
 }
 
-function renderKeywordGroup(container, title, items, note = "") {
+function renderKeywordGroup(container, title, items = [], note = "") {
+  if (!container) return;
+  items = Array.isArray(items) ? items : [];
   const group = document.createElement("div");
   group.style.width = "100%";
   group.style.marginBottom = "16px";
@@ -1060,9 +1063,20 @@ function renderMatchedKeywords(container, analysis) {
 }
 
 function analyzeAndRender() {
-  const resumeText = document.getElementById("resumeText").value.trim();
-  const jobText = document.getElementById("jobText").value.trim();
-  const jobType = document.getElementById("jobType").value;
+  const resumeEl = document.getElementById("resumeText");
+  const jobEl = document.getElementById("jobText");
+  const jobTypeEl = document.getElementById("jobType");
+  const resultsEl = document.getElementById("results");
+  const rewriteEl = document.getElementById("rewrite");
+
+  if (!resumeEl || !jobEl || !jobTypeEl || !resultsEl || !rewriteEl) {
+    alert("The resume checker is still loading. Refresh the page and try again.");
+    return;
+  }
+
+  const resumeText = resumeEl.value.trim();
+  const jobText = jobEl.value.trim();
+  const jobType = jobTypeEl.value;
 
   if (!resumeText || !jobText) {
     alert("Paste both your resume and the job description first.");
@@ -1071,22 +1085,28 @@ function analyzeAndRender() {
 
   const analysis = analyzeResume(resumeText, jobText, jobType);
 
-  document.getElementById("results").hidden = false;
-  document.getElementById("rewrite").hidden = false;
-  document.getElementById("scoreValue").textContent = analysis.score;
-  document.getElementById("scoreMessage").textContent = getScoreMessage(analysis.score);
-  document.getElementById("scoreBar").style.width = `${analysis.score}%`;
+  resultsEl.hidden = false;
+  rewriteEl.hidden = false;
+  const scoreValue = document.getElementById("scoreValue");
+  const scoreMessage = document.getElementById("scoreMessage");
+  const scoreBar = document.getElementById("scoreBar");
+  if (scoreValue) scoreValue.textContent = analysis.score;
+  if (scoreMessage) scoreMessage.textContent = getScoreMessage(analysis.score);
+  if (scoreBar) scoreBar.style.width = `${analysis.score}%`;
 
   renderMissingKeywords(document.getElementById("missingKeywords"), analysis);
   renderMatchedKeywords(document.getElementById("matchedKeywords"), analysis);
 
   const flags = buildRedFlags(resumeText, jobText, analysis);
-  document.getElementById("redFlags").innerHTML = flags.map(flag => `<li>${flag}</li>`).join("");
+  const redFlags = document.getElementById("redFlags");
+  if (redFlags) redFlags.innerHTML = flags.map(flag => `<li>${flag}</li>`).join("");
 
-  document.getElementById("summaryOutput").textContent = buildSummary(jobType, analysis);
-  document.getElementById("bulletOutput").textContent = buildBullets(jobType, analysis);
+  const summaryOutput = document.getElementById("summaryOutput");
+  const bulletOutput = document.getElementById("bulletOutput");
+  if (summaryOutput) summaryOutput.textContent = buildSummary(jobType, analysis);
+  if (bulletOutput) bulletOutput.textContent = buildBullets(jobType, analysis);
 
-  document.getElementById("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 let auth = null;
@@ -1106,15 +1126,88 @@ function hasFirebaseConfig(config) {
   );
 }
 
-const firebaseEnabled = hasFirebaseConfig(firebaseConfig);
+let firebaseEnabled = false;
+let firebaseLoadPromise = null;
 
-if (firebaseEnabled) {
+async function setupFirebase() {
+  if (firebaseLoadPromise) return firebaseLoadPromise;
+
+  firebaseLoadPromise = (async () => {
+    try {
+      const configModule = await import("./firebase-config.js");
+      const firebaseConfig = configModule.firebaseConfig;
+
+      if (!hasFirebaseConfig(firebaseConfig)) {
+        firebaseEnabled = false;
+        return false;
+      }
+
+      const [appModule, authModule, firestoreModule] = await Promise.all([
+        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js")
+      ]);
+
+      initializeApp = appModule.initializeApp;
+      getAuth = authModule.getAuth;
+      createUserWithEmailAndPassword = authModule.createUserWithEmailAndPassword;
+      signInWithEmailAndPassword = authModule.signInWithEmailAndPassword;
+      firebaseSignOut = authModule.signOut;
+      onAuthStateChanged = authModule.onAuthStateChanged;
+      updateProfile = authModule.updateProfile;
+      sendPasswordResetEmail = authModule.sendPasswordResetEmail;
+
+      getFirestore = firestoreModule.getFirestore;
+      collection = firestoreModule.collection;
+      addDoc = firestoreModule.addDoc;
+      deleteDoc = firestoreModule.deleteDoc;
+      doc = firestoreModule.doc;
+      onSnapshot = firestoreModule.onSnapshot;
+      query = firestoreModule.query;
+      orderBy = firestoreModule.orderBy;
+      serverTimestamp = firestoreModule.serverTimestamp;
+      getDocs = firestoreModule.getDocs;
+      writeBatch = firestoreModule.writeBatch;
+
+      const firebaseApp = initializeApp(firebaseConfig);
+      auth = getAuth(firebaseApp);
+      db = getFirestore(firebaseApp);
+      firebaseEnabled = true;
+      return true;
+    } catch (error) {
+      console.warn("Account saving did not load. Analyzer still works:", error);
+      firebaseEnabled = false;
+      return false;
+    }
+  })();
+
+  return firebaseLoadPromise;
+}
+
+function storageGet(key, fallback = null) {
   try {
-    const firebaseApp = initializeApp(firebaseConfig);
-    auth = getAuth(firebaseApp);
-    db = getFirestore(firebaseApp);
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
   } catch (error) {
-    console.error("Firebase failed to initialize:", error);
+    return fallback;
+  }
+}
+
+function storageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function storageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch (error) {
+    return false;
   }
 }
 
@@ -1128,9 +1221,9 @@ function getCurrentUser() {
   }
 
   try {
-    return JSON.parse(localStorage.getItem("gmpt_current_user") || "null");
+    return JSON.parse(storageGet("gmpt_current_user", "null") || "null");
   } catch (error) {
-    localStorage.removeItem("gmpt_current_user");
+    storageRemove("gmpt_current_user");
     return null;
   }
 }
@@ -1157,14 +1250,14 @@ function loadTracker() {
   if (firebaseEnabled && db && currentUser) return cloudItems;
 
   try {
-    return JSON.parse(localStorage.getItem(getTrackerKey()) || "[]");
+    return JSON.parse(storageGet(getTrackerKey(), "[]") || "[]");
   } catch (error) {
     return [];
   }
 }
 
 function saveTracker(items) {
-  localStorage.setItem(getTrackerKey(), JSON.stringify(items));
+  storageSet(getTrackerKey(), JSON.stringify(items));
 }
 
 function setAuthMessage(message = "", type = "") {
@@ -1212,7 +1305,7 @@ function setAuthMode(mode) {
   }
 
   const switchBtn = document.getElementById("switchAuthBtn");
-  switchBtn?.addEventListener("click", () => setAuthMode(authMode === "create" ? "signin" : "create"));
+  if (switchBtn) switchBtn.onclick = () => setAuthMode(authMode === "create" ? "signin" : "create");
   setAuthMessage("");
 }
 
@@ -1229,10 +1322,15 @@ function formatAuthError(error) {
 
 async function handleAccountSubmit(event) {
   event.preventDefault();
-  if (authMode === "create") {
-    await createAccount();
-  } else {
-    await signIn();
+  try {
+    if (authMode === "create") {
+      await createAccount();
+    } else {
+      await signIn();
+    }
+  } catch (error) {
+    console.error("Account button failed:", error);
+    setAuthMessage(formatAuthError(error), "error");
   }
 }
 
@@ -1250,12 +1348,22 @@ function renderAccount() {
   if (!navUser || !accountStatus || !accountNote || !trackerNote || !signOutBtn || !accountForm || !authCard || !accountStatusCard) return;
 
   if (!firebaseEnabled || !auth || !db) {
-    navUser.textContent = "Account setup needed";
-    authCard.hidden = false;
-    accountStatusCard.hidden = true;
-    trackerNote.textContent = "You can test the analyzer now. Account saving is still being connected.";
-    setAuthMessage("Account saving is not connected yet. The analyzer still works.", "error");
-    signOutBtn.hidden = true;
+    if (user) {
+      navUser.textContent = `Signed in as ${user.name}`;
+      accountStatus.textContent = `Signed in as ${user.name}`;
+      accountNote.textContent = `${user.email} — saved on this device.`;
+      trackerNote.textContent = `Tracking applications for ${user.name}.`;
+      authCard.hidden = true;
+      accountStatusCard.hidden = false;
+      signOutBtn.hidden = false;
+      accountForm.reset();
+    } else {
+      navUser.textContent = "Create or sign in";
+      trackerNote.textContent = "You can use the tracker now. Sign in to keep your list separate.";
+      authCard.hidden = false;
+      accountStatusCard.hidden = true;
+      signOutBtn.hidden = true;
+    }
     return;
   }
 
@@ -1314,7 +1422,7 @@ async function signIn() {
       return;
     }
 
-    localStorage.setItem("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString() }));
+    storageSet("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString() }));
     document.getElementById("accountForm")?.reset();
     renderAccount();
     renderTracker();
@@ -1322,8 +1430,8 @@ async function signIn() {
     return;
   }
 
-  const email = document.getElementById("userEmail").value.trim().toLowerCase();
-  const password = document.getElementById("userPassword").value;
+  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
+  const password = document.getElementById("userPassword")?.value || "";
 
   if (!email || !password) {
     setAuthMessage("Enter your email and password.", "error");
@@ -1341,14 +1449,9 @@ async function signIn() {
 async function createAccount() {
   setAuthMessage("Creating account...", "");
 
-  if (!firebaseEnabled || !auth || !db) {
-    setAuthMessage("Account saving is still being set up. Try again soon.", "error");
-    return;
-  }
-
-  const name = document.getElementById("userName").value.trim();
-  const email = document.getElementById("userEmail").value.trim().toLowerCase();
-  const password = document.getElementById("userPassword").value;
+  const name = document.getElementById("userName")?.value.trim();
+  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
+  const password = document.getElementById("userPassword")?.value || "";
 
   if (!name || !email || !password) {
     setAuthMessage("Enter your name, email, and password to create an account.", "error");
@@ -1357,6 +1460,15 @@ async function createAccount() {
 
   if (password.length < 6) {
     setAuthMessage("Password must be at least 6 characters.", "error");
+    return;
+  }
+
+  if (!firebaseEnabled || !auth || !db) {
+    storageSet("gmpt_current_user", JSON.stringify({ name, email, signedInAt: new Date().toISOString(), localOnly: true }));
+    document.getElementById("accountForm")?.reset();
+    renderAccount();
+    renderTracker();
+    returnHomeAfterAuth("Account created on this device. The analyzer and tracker are ready.");
     return;
   }
 
@@ -1377,7 +1489,7 @@ async function resetPassword() {
     return;
   }
 
-  const email = document.getElementById("userEmail").value.trim().toLowerCase();
+  const email = document.getElementById("userEmail")?.value.trim().toLowerCase();
   if (!email) {
     setAuthMessage("Enter your email first, then tap Forgot password.", "error");
     return;
@@ -1392,17 +1504,20 @@ async function resetPassword() {
 }
 
 async function signOut() {
-  if (firebaseEnabled && auth) {
-    await firebaseSignOut(auth);
-    closeMenu();
-    document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    return;
+  try {
+    if (firebaseEnabled && auth) {
+      await firebaseSignOut(auth);
+    }
+  } catch (error) {
+    console.warn("Cloud sign out failed. Clearing local session:", error);
   }
 
-  localStorage.removeItem("gmpt_current_user");
+  storageRemove("gmpt_current_user");
+  currentUser = null;
   renderAccount();
   renderTracker();
   closeMenu();
+  document.getElementById("home")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function exportTrackerCSV() {
@@ -1482,26 +1597,29 @@ function watchCloudTracker() {
 async function addApplication(event) {
   event.preventDefault();
 
+  const company = document.getElementById("company")?.value.trim();
+  const role = document.getElementById("role")?.value.trim();
+  if (!company || !role) return;
+
   const item = {
     date: new Date().toLocaleDateString(),
-    company: document.getElementById("company").value.trim(),
-    role: document.getElementById("role").value.trim(),
-    pay: document.getElementById("pay").value.trim(),
-    status: document.getElementById("status").value
+    company,
+    role,
+    pay: document.getElementById("pay")?.value.trim() || "",
+    status: document.getElementById("status")?.value || "Saved"
   };
 
-  if (firebaseEnabled && db) {
-    if (!currentUser) {
-      alert("Sign in from the menu first to save applications to your account.");
+  if (firebaseEnabled && db && currentUser) {
+    try {
+      await addDoc(collection(db, "users", currentUser.uid, "applications"), {
+        ...item,
+        createdAt: serverTimestamp()
+      });
+      event.target.reset();
       return;
+    } catch (error) {
+      console.error("Cloud tracker save failed. Saving locally instead:", error);
     }
-
-    await addDoc(collection(db, "users", currentUser.uid, "applications"), {
-      ...item,
-      createdAt: serverTimestamp()
-    });
-    event.target.reset();
-    return;
   }
 
   const items = loadTracker();
@@ -1584,72 +1702,166 @@ function clearAnalyzer() {
   if (results) results.hidden = true;
   if (rewrite) rewrite.hidden = true;
   if (scoreBar) scoreBar.style.width = "0%";
+  const scoreValue = document.getElementById("scoreValue");
+  const scoreMessage = document.getElementById("scoreMessage");
+  if (scoreValue) scoreValue.textContent = "0";
+  if (scoreMessage) scoreMessage.textContent = "";
 
   document.getElementById("missingKeywords")?.replaceChildren();
   document.getElementById("matchedKeywords")?.replaceChildren();
   document.getElementById("redFlags")?.replaceChildren();
+  document.getElementById("summaryOutput")?.replaceChildren();
+  document.getElementById("bulletOutput")?.replaceChildren();
 }
 
-function init() {
-  const analyzeButton = document.getElementById("analyzeBtn");
-  const clearButton = document.getElementById("clearBtn");
-
-  if (analyzeButton) {
-    analyzeButton.type = "button";
-    analyzeButton.onclick = event => {
-      event.preventDefault();
-      try {
-        analyzeAndRender();
-      } catch (error) {
-        console.error("Analyze failed:", error);
-        alert("Something stopped the resume report from loading. Refresh the page and try again.");
-      }
-    };
+function copyTextFallback(value) {
+  const text = String(value || "");
+  if (!text) return Promise.resolve(false);
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).then(() => true).catch(() => false);
   }
 
-  if (clearButton) {
-    clearButton.type = "button";
-    clearButton.onclick = event => {
-      event.preventDefault();
-      clearAnalyzer();
-    };
-  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
+  textarea.remove();
+  return Promise.resolve(ok);
+}
 
-  document.querySelectorAll(".copy-button").forEach(button => {
-    button.addEventListener("click", async () => {
-      const target = document.getElementById(button.dataset.copy);
-      await navigator.clipboard.writeText(target.textContent);
-      const old = button.textContent;
-      button.textContent = "Copied";
-      setTimeout(() => (button.textContent = old), 1200);
-    });
+function toggleDrawerPanel(button) {
+  const targetId = button?.getAttribute("data-drawer-page");
+  const targetPanel = targetId ? document.getElementById(targetId) : null;
+  const isOpen = targetPanel && !targetPanel.hidden;
+
+  document.querySelectorAll(".drawer-page-panel").forEach(panel => {
+    panel.hidden = true;
+  });
+  document.querySelectorAll(".drawer-page-button").forEach(item => {
+    item.classList.remove("active");
   });
 
-  document.getElementById("menuToggle")?.addEventListener("click", () => openMenu());
-  document.getElementById("menuClose")?.addEventListener("click", closeMenu);
+  if (targetPanel && !isOpen) {
+    targetPanel.hidden = false;
+    button.classList.add("active");
+  }
+}
+
+function openAccountDrawer(event) {
+  event?.preventDefault?.();
+  setAuthMode("create");
+  openMenu();
+}
+
+function bindButton(id, handler) {
+  const button = document.getElementById(id);
+  if (!button) return;
+  button.type = button.type || "button";
+  button.onclick = event => {
+    event.preventDefault();
+    try {
+      const result = handler(event);
+      if (result?.catch) result.catch(error => {
+        console.error(`${id} failed:`, error);
+        alert("Something went wrong. Refresh the page and try again.");
+      });
+    } catch (error) {
+      console.error(`${id} failed:`, error);
+      alert("Something went wrong. Refresh the page and try again.");
+    }
+  };
+}
+
+let initialized = false;
+
+function init() {
+  if (initialized) return;
+  initialized = true;
+
+  bindButton("analyzeBtn", analyzeAndRender);
+  bindButton("clearBtn", clearAnalyzer);
+  bindButton("menuToggle", () => {
+    const navMenu = document.getElementById("navMenu");
+    if (navMenu?.classList.contains("open")) closeMenu();
+    else openMenu();
+  });
+  bindButton("menuClose", closeMenu);
+  bindButton("passwordResetBtn", resetPassword);
+  bindButton("signOutBtn", signOut);
+  bindButton("exportTrackerBtn", exportTrackerCSV);
+  bindButton("clearTrackerBtn", clearTracker);
+
   document.getElementById("menuBackdrop")?.addEventListener("click", closeMenu);
   document.querySelectorAll("#navMenu .menu-item").forEach(link => {
     link.addEventListener("click", closeMenu);
   });
+  document.querySelectorAll("[data-open-account]").forEach(button => {
+    button.onclick = openAccountDrawer;
+  });
+  document.querySelectorAll("[data-drawer-page]").forEach(button => {
+    button.onclick = () => toggleDrawerPanel(button);
+  });
 
-  document.getElementById("accountForm")?.addEventListener("submit", handleAccountSubmit);
-  document.getElementById("passwordResetBtn")?.addEventListener("click", resetPassword);
+  document.querySelectorAll(".copy-button").forEach(button => {
+    button.onclick = async event => {
+      event.preventDefault();
+      const target = document.getElementById(button.dataset.copy);
+      const old = button.textContent;
+      await copyTextFallback(target?.textContent || "");
+      button.textContent = "Copied";
+      setTimeout(() => (button.textContent = old), 1200);
+    };
+  });
+
   document.getElementById("togglePasswordBtn")?.addEventListener("click", () => {
     const input = document.getElementById("userPassword");
     const button = document.getElementById("togglePasswordBtn");
+    if (!input || !button) return;
     const showing = input.type === "text";
     input.type = showing ? "password" : "text";
     button.textContent = showing ? "Show" : "Hide";
   });
 
-  setAuthMode("create");
-  document.getElementById("signOutBtn")?.addEventListener("click", signOut);
-  document.getElementById("exportTrackerBtn")?.addEventListener("click", exportTrackerCSV);
-  document.getElementById("clearTrackerBtn")?.addEventListener("click", clearTracker);
-  document.getElementById("trackerForm")?.addEventListener("submit", addApplication);
-  document.getElementById("trackerRows")?.addEventListener("click", deleteApplication);
+  const accountForm = document.getElementById("accountForm");
+  if (accountForm) {
+    accountForm.onsubmit = handleAccountSubmit;
+  }
+  const trackerForm = document.getElementById("trackerForm");
+  if (trackerForm) {
+    trackerForm.onsubmit = addApplication;
+  }
+  const trackerRows = document.getElementById("trackerRows");
+  if (trackerRows) {
+    trackerRows.onclick = deleteApplication;
+  }
 
-  initAuthListener();
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeMenu();
+  });
+
+  setAuthMode("create");
+  renderAccount();
+  renderTracker();
+  window.GMPT_APP_READY = true;
+
+  setupFirebase().then(isReady => {
+    if (isReady) {
+      initAuthListener();
+    } else {
+      renderAccount();
+      renderTracker();
+    }
+  }).catch(error => {
+    console.warn("Account setup failed. Analyzer and local tracker still work:", error);
+    firebaseEnabled = false;
+    renderAccount();
+    renderTracker();
+  });
 }
 
 document.addEventListener("DOMContentLoaded", init);
