@@ -1,6 +1,6 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "paid-logic-v4-smart-fix-checklist";
+window.GMPT_APP_VERSION = "apply-decision-gate-v1";
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -914,39 +914,128 @@ function getFamilyStrengtheningAdvice(family, selectedLabel) {
   return FAMILY_STRENGTHENING_ADVICE[family] || "real training, certification, or job duties that prove the missing requirements";
 }
 
+function containsPhraseOrWord(normalizedText, pattern) {
+  const normalizedPattern = normalize(pattern);
+  if (!normalizedPattern) return false;
+  if (normalizedPattern.length <= 3 && !normalizedPattern.includes(" ")) return wordAppears(normalizedText, normalizedPattern);
+  return normalizedText.includes(normalizedPattern);
+}
+
 function resumeShowsAny(resumeNorm, patterns) {
-  return patterns.some(pattern => resumeNorm.includes(normalize(pattern)));
+  return patterns.some(pattern => containsPhraseOrWord(resumeNorm, pattern));
+}
+
+function hasJobPhrase(jobNorm, patterns) {
+  return patterns.some(pattern => containsPhraseOrWord(jobNorm, pattern));
+}
+
+function matchResumeRequirement(resumeNorm, resumePatterns = []) {
+  return resumePatterns.length ? resumeShowsAny(resumeNorm, resumePatterns) : false;
+}
+
+function detectYearRequirement(jobNorm) {
+  const findings = [];
+  const patterns = [
+    /(\d+)\s*\+?\s*(?:years|year|yrs|yr)\s+(?:of\s+)?(?:directly\s+related\s+|related\s+|practical\s+|verifiable\s+|continuous\s+)?experience/g,
+    /minimum\s+of\s+(\d+)\s*(?:years|year|yrs|yr)/g,
+    /at\s+least\s+(\d+)\s*(?:years|year|yrs|yr)/g,
+    /(\d+)\s*(?:months|month)\s+(?:of\s+)?(?:verifiable\s+)?(?:tractor\s*trailer|commercial|driving|related)?\s*experience/g
+  ];
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(jobNorm)) !== null) {
+      const raw = match[0].replace(/\s+/g, " ").trim();
+      if (!findings.some(item => item.raw === raw)) findings.push({ raw, number: Number(match[1]) || 0 });
+    }
+  });
+  return findings.slice(0, 4);
 }
 
 function detectHardRequirements(jobText, resumeText, selectedFamily) {
   const job = normalize(jobText);
   const resume = normalize(resumeText);
   const reqs = [];
-  function add(label, patterns, resumePatterns = [], level = "confirm") {
-    if (!patterns.some(pattern => job.includes(normalize(pattern)))) return;
-    const met = resumePatterns.length ? resumeShowsAny(resume, resumePatterns) : false;
-    reqs.push({ label, met, level });
+
+  function add(label, patterns, resumePatterns = [], level = "confirm", gate = "general") {
+    if (!hasJobPhrase(job, patterns)) return;
+    const met = matchResumeRequirement(resume, resumePatterns);
+    const key = `${label}|${gate}`;
+    if (reqs.some(item => item.key === key)) return;
+    reqs.push({ label, met, level, gate, key });
   }
 
-  add("high school diploma or GED proof", ["high school diploma", "ged", "diploma or equivalent", "high school diploma or equivalent"], ["high school", "ged", "diploma", "graduated"], "hard");
-  add("background check / background investigation", ["background investigation", "background check", "criminal histories"], [], "confirm");
-  add("drug screen", ["drug screen", "drug test", "drug screening"], [], "confirm");
-  add("valid driver's license", ["valid driver's license", "valid driver", "driver license", "driver’s license"], ["driver's license", "driver license", "valid license", "cdl"], "hard");
-  add("security license or guard card", ["licensing requirements", "security license", "guard card", "license may be required"], ["security license", "guard card"], "hard");
-  add("hospital vaccines", ["hospital vaccines", "vaccines are required", "vaccination required", "vaccines required"], ["vaccine", "vaccinated"], "hard");
-  add("hospital morgue exposure", ["morgue environment", "morgue exposure"], [], "confirm");
-  add("age requirement", ["at least 18", "18 years of age", "at least 21", "21 years of age"], [], "confirm");
-  add("active RN license", ["active rn license", "rn license", "registered nurse license"], ["rn license", "registered nurse", "nursing license"], "hard");
-  add("active LPN license", ["active lpn license", "lpn license", "licensed practical nurse"], ["lpn license", "licensed practical nurse"], "hard");
-  add("CNA certification", ["cna certification", "certified nursing assistant", "cna required"], ["cna", "certified nursing assistant"], "hard");
-  add("CDL", ["cdl", "commercial driver"], ["cdl", "cdl-a", "commercial driver"], "hard");
-  add("TWIC card", ["twic"], ["twic"], "hard");
-  add("rotating or swing shifts", ["rotating swing shifts", "rotating shifts", "swing shifts"], ["rotating shift", "swing shift", "12-hour", "12 hour", "night shift"], "confirm");
-  add("lifting or physical requirements", ["lift 50", "lift 75", "50/75", "squat", "stoop", "bend", "climb", "manual dexterity", "push/pull"], ["lift", "lifting", "50", "75", "physical", "squat", "stoop", "bend", "climb"], "confirm");
-  add("weekend or overnight availability", ["overnight", "weekend", "7:00 pm", "7 pm", "12-hour"], ["night shift", "overnight", "weekend", "12-hour", "12 hour"], "confirm");
-  add("security work history requirement", ["years of security experience", "security experience", "law enforcement experience", "security supervisor"], ["security officer", "security guard", "law enforcement", "security supervisor"], selectedFamily === "security" ? "hard" : "confirm");
+  function addManual(label, met, level = "confirm", gate = "general") {
+    const key = `${label}|${gate}`;
+    if (reqs.some(item => item.key === key)) return;
+    reqs.push({ label, met, level, gate, key });
+  }
 
-  return reqs;
+  // Common employment gates.
+  add("high school diploma or GED", ["high school diploma", "ged", "diploma or equivalent", "high school diploma or equivalent"], ["high school", "ged", "diploma", "graduated"], "confirm", "education");
+  add("background check / background investigation", ["background investigation", "background check", "criminal background", "criminal histories", "background screening", "background/drug"], [], "confirm", "screening");
+  add("drug screen", ["drug screen", "drug test", "drug/test", "drug screening", "drug-free workplace"], [], "confirm", "screening");
+  add("eligible to work in the United States", ["eligible to work in the united states", "legally authorized to work", "legally eligible to work", "e-verify"], ["eligible to work", "authorized to work", "u.s. citizen", "us citizen"], "confirm", "work_authorization");
+  add("U.S. citizenship", ["u.s. citizenship required", "united states citizen", "must be a united states citizen", "us citizenship required"], ["u.s. citizen", "us citizen", "united states citizen"], "hard", "citizenship");
+
+  // Driving and field-service gates.
+  add("valid driver's license", ["valid driver's license", "valid driver", "driver license", "driver’s license", "active drivers license", "active driver's license"], ["driver's license", "driver license", "valid license", "cdl"], "hard", "driver_license");
+  add("acceptable driving record / MVR", ["acceptable driving record", "satisfactory driving record", "clean driving record", "acceptable motor vehicle record", "mvr"], ["clean driving record", "safe driving", "driving record", "mvr"], "hard", "mvr");
+  add("valid auto insurance", ["valid auto insurance", "auto insurance that meets company standards"], ["auto insurance", "insured"], "hard", "auto_insurance");
+  add("at least 18 years old", ["at least 18", "18 years of age", "must be 18"], [], "confirm", "age");
+  add("at least 21 years old", ["at least 21", "21 years of age", "must be 21"], [], "confirm", "age");
+  add("at least 24 years old", ["must be 24", "at least 24", "24 years old"], [], "confirm", "age");
+
+  // CDL gates.
+  const cdlAJob = hasJobPhrase(job, ["cdl-a", "cdl a", "class-a cdl", "class a cdl", "valid class-a", "valid class a"]);
+  if (cdlAJob) addManual("valid Class-A CDL", resumeShowsAny(resume, ["cdl-a", "cdl a", "class a cdl", "class-a cdl"]), "hard", "cdl_a");
+  else add("CDL", ["cdl", "commercial driver"], ["cdl", "commercial driver"], "hard", "cdl");
+  add("Tanker endorsement", ["tanker endorsement", "tanker and hazmat", "tanker"], ["tanker endorsement", "tanker"], "hard", "tanker");
+  add("Hazmat endorsement", ["hazmat endorsement", "tanker and hazmat", "hazardous materials endorsement", "hazmat"], ["hazmat endorsement", "hazmat", "hazardous materials"], "hard", "hazmat");
+  add("no license restrictions", ["no restrictions", "no license restrictions", "no restrictions on license"], ["no restrictions", "manual restriction", "unrestricted"], "hard", "license_restrictions");
+  add("10-speed/manual transmission ability", ["ten speed", "10 speed", "10-speed", "manual transmission", "able to drive a ten speed"], ["10 speed", "10-speed", "ten speed", "manual transmission"], "hard", "manual_transmission");
+  add("DOT physical", ["dot physical"], ["dot physical", "dot card", "medical card"], "hard", "dot_physical");
+  add("functional agility test", ["functional agility test", "hpe"], [], "confirm", "agility_test");
+
+  // Licenses, certifications, and regulated fields.
+  add("active RN license", ["active rn license", "rn license", "registered nurse license"], ["rn license", "registered nurse", "nursing license"], "hard", "rn_license");
+  add("active LPN license", ["active lpn license", "lpn license", "licensed practical nurse"], ["lpn license", "licensed practical nurse"], "hard", "lpn_license");
+  add("CNA certification", ["cna certification", "certified nursing assistant", "cna required"], ["cna", "certified nursing assistant"], "hard", "cna");
+  add("state teaching certification", ["state teaching certification", "teaching certification", "teacher certification"], ["teaching certification", "certified teacher", "teacher license", "educator certificate"], "hard", "teaching_certification");
+  add("bachelor's degree", ["bachelor's degree", "bachelor degree", "bs degree", "b.s. degree"], ["bachelor", "bachelors", "b.s", "bs degree", "degree"], "hard", "bachelors");
+  add("EPA Universal Certification", ["epa universal certification", "epa universal"], ["epa universal", "epa certification"], "hard", "epa_universal");
+  add("commercial food service equipment repair certificate", ["certificate in commercial food service equipment repair", "commercial food service equipment repair"], ["commercial food service equipment repair", "food service equipment repair certificate"], "hard", "food_equipment_certificate");
+  add("alarm agent permit eligibility", ["alarm agent permit"], ["alarm agent", "alarm permit"], "hard", "alarm_agent_permit");
+  add("pesticide license within 90 days", ["pesticide license", "pesticide certification"], ["pesticide license", "pesticide certification", "pest control license"], "confirm", "pesticide_license");
+  add("security license or guard card", ["licensing requirements", "security license", "guard card", "license may be required"], ["security license", "guard card"], selectedFamily === "security" ? "hard" : "confirm", "security_license");
+  add("I-CAR / ASE certification", ["i-car", "ase certifications", "ase certification"], ["i-car", "ase"], "confirm", "auto_certification");
+  add("CompTIA A+ or CTS certification", ["comptia a+", "cts"], ["comptia a+", "a+ certification", "cts"], "hard", "it_certification");
+  add("CISSP certification", ["cissp"], ["cissp"], "confirm", "cissp");
+
+  // Clearance / federal access gates.
+  add("active TS/SCI with Polygraph", ["ts/sci with polygraph", "ts sci with polygraph", "active clearance", "polygraph is required"], ["ts/sci", "ts sci", "polygraph", "active clearance"], "hard", "ts_sci_poly");
+  add("facility access authorization / federal background eligibility", ["facility access authorization", "employment authorization", "background investigative", "doe q clearance", "top secret", "security clearance"], ["security clearance", "top secret", "q clearance", "facility access"], "confirm", "facility_access");
+
+  // Physical / schedule gates.
+  add("rotating or swing shifts", ["rotating swing shifts", "rotating shifts", "swing shifts"], ["rotating shift", "swing shift", "12-hour", "12 hour", "night shift"], "confirm", "schedule");
+  add("weekend or holiday availability", ["weekend", "weekends", "holidays", "holiday availability"], ["weekend", "holiday", "flexible schedule"], "confirm", "schedule");
+  add("overnight or night shift availability", ["overnight", "night shift", "3rd shift", "third shift", "11pm", "7:00 pm", "7 pm"], ["night shift", "overnight", "3rd shift", "third shift"], "confirm", "schedule");
+  add("lifting / physical requirements", ["lift 50", "lift 75", "lift 80", "lift up to 100", "100 lbs", "50 pounds", "80 pounds", "squat", "stoop", "bend", "climb", "manual dexterity", "push/pull"], ["lift", "lifting", "50", "75", "80", "100", "physical", "squat", "stoop", "bend", "climb"], "confirm", "physical");
+  add("ladder, heights, or confined-space work", ["climb ladders", "ladders", "work at heights", "confined spaces", "crawl spaces", "attics", "rooftops"], ["ladder", "heights", "confined", "crawl", "attic", "rooftop"], "confirm", "heights_confined");
+  add("outdoor / all-weather work", ["outdoors", "outdoor", "all weather", "weather conditions", "outside in the elements"], ["outdoor", "outside", "weather"], "confirm", "outdoor");
+  add("PPE / respirator", ["ppe", "personal protective equipment", "respirator", "safety harness", "steel-toed"], ["ppe", "respirator", "safety harness", "steel-toe", "steel toed"], "confirm", "ppe");
+
+  // Technical skill gates from advanced IT/software posts.
+  add("5+ years SQL Server DBA / SQL Development", ["5+ years of sql server", "5 years of sql server", "5+ years sql server", "5+ years of sql development", "5 years of sql development"], ["sql server dba", "database administrator", "t-sql", "sql development"], "hard", "senior_sql");
+  add("7+ years cybersecurity in a regulated environment", ["7 years' experience working in a cyber security role", "7 years experience working in a cyber security role", "7+ years cybersecurity", "minimum of 7 years"], ["cybersecurity", "cyber security", "nist", "fips", "grc", "risk assessment"], "hard", "senior_cyber");
+  add("professional C# / ASP.NET development experience", ["c#/asp.net", "asp.net mvc", "asp.net mvc core", "entity framework", "razor pages"], ["c#", "asp.net", "entity framework", "mvc", "razor"], "hard", "dotnet_dev");
+  add("Wonderware experience", ["wonderware"], ["wonderware"], "hard", "wonderware");
+
+  detectYearRequirement(job).forEach(item => {
+    const hard = item.number >= 2 || /verifiable|continuous|directly related|practical|tractor|commercial|cyber|sql/.test(item.raw);
+    addManual(`${item.raw} required`, resume.includes(`${item.number} years`) || resume.includes(`${item.number}+ years`) || resume.includes(`${item.number} year`) || resume.includes(`${item.number} months`), hard ? "hard" : "confirm", "experience_time");
+  });
+
+  return reqs.map(({ key, ...item }) => item);
 }
 
 function formatHardRequirement(req) {
@@ -955,11 +1044,123 @@ function formatHardRequirement(req) {
   return `${req.label} is mentioned in the job post. Confirm before applying.`;
 }
 
+function formatRequirementShort(req) {
+  return req.met ? `${req.label}: shown` : `${req.label}: not clearly shown`;
+}
+
+function isGigOrLowQualityPost(jobText) {
+  const job = normalize(jobText);
+  const gigSignals = ["focus groups", "paid research", "surveys", "product testing", "earn income on your own terms", "no prior research", "from home or in-person"];
+  const scamSignals = ["gift card", "crypto", "telegram", "whatsapp", "send a check", "equipment purchase", "bank login", "processing fee"];
+  const gigCount = gigSignals.filter(signal => job.includes(normalize(signal))).length;
+  const scamCount = scamSignals.filter(signal => job.includes(normalize(signal))).length;
+  if (scamCount) return { hit: true, risk: "high", reason: "The post contains scam-risk wording or payment/equipment warning signs." };
+  if (gigCount >= 2) return { hit: true, risk: "gig", reason: "This looks more like a paid survey, focus group, or product-testing gig than steady employment." };
+  return { hit: false, risk: "none", reason: "" };
+}
+
+function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily }) {
+  const reqs = smartFixes?.hardRequirements || [];
+  const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
+  const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
+  const strictBlockerGates = new Set([
+    "cdl_a", "tanker", "hazmat", "license_restrictions", "manual_transmission", "rn_license", "lpn_license", "cna",
+    "teaching_certification", "bachelors", "epa_universal", "food_equipment_certificate", "ts_sci_poly", "senior_sql",
+    "senior_cyber", "dotnet_dev", "wonderware", "citizenship", "it_certification"
+  ]);
+  const strictBlockers = unmetHard.filter(item => strictBlockerGates.has(item.gate));
+  const gigRisk = smartFixes?.gigRisk || { hit: false };
+
+  if (gigRisk.hit) {
+    return {
+      decision: "be_careful",
+      label: "Be careful — gig / low-quality posting",
+      tone: "warning",
+      reason: gigRisk.reason,
+      blockers: [],
+      confirmations: unmetConfirm,
+      nextStep: "Do not treat this like steady employment. Verify the company, pay structure, interview process, and whether they ask for money or personal financial information."
+    };
+  }
+
+  if (strictBlockers.length) {
+    return {
+      decision: "do_not_apply_yet",
+      label: "Do not apply yet",
+      tone: "danger",
+      reason: `This job has a hard gate the resume does not clearly prove: ${joinEnglish(strictBlockers.map(item => item.label).slice(0, 4))}.`,
+      blockers: strictBlockers,
+      confirmations: unmetConfirm,
+      nextStep: "Get or show the required license, certification, clearance, endorsement, degree, or experience first. Do not let the app create wording around a requirement you do not have."
+    };
+  }
+
+  if (diagnosis.category === "wrong_job_type") {
+    return {
+      decision: "do_not_apply_yet",
+      label: "Do not apply with this scan yet",
+      tone: "danger",
+      reason: "The selected job type does not match what the job post appears to be.",
+      blockers: [],
+      confirmations: unmetConfirm,
+      nextStep: "Switch the job type or use General / Any Job, then scan again before copying wording."
+    };
+  }
+
+  if (diagnosis.category === "weak_evidence") {
+    return {
+      decision: "do_not_apply_yet",
+      label: "Do not apply yet",
+      tone: "danger",
+      reason: "The resume does not show enough direct proof for this job type yet.",
+      blockers: unmetHard,
+      confirmations: unmetConfirm,
+      nextStep: "Apply to closer jobs first or add real training, certifications, duties, tools, or projects before using a job-specific rewrite."
+    };
+  }
+
+  if (unmetHard.length || unmetConfirm.length) {
+    return {
+      decision: "apply_if_true",
+      label: "Apply only if these are true",
+      tone: "warning",
+      reason: "The job mentions requirements that are not clearly shown in the resume. Some may be easy to confirm, but they matter before applying.",
+      blockers: unmetHard,
+      confirmations: unmetConfirm,
+      nextStep: "Confirm the items below. Add them to the resume only if you honestly have them."
+    };
+  }
+
+  if (diagnosis.category === "medium_match" || diagnosis.category === "transferable" || keywordData.score < 65) {
+    return {
+      decision: "fix_wording_first",
+      label: "Apply, but fix wording first",
+      tone: "caution",
+      reason: "The resume has some proof, but the ATS wording and proof gaps need work before applying.",
+      blockers: [],
+      confirmations: [],
+      nextStep: "Use the safe wording and proof checklist. Add missing keywords only where your resume can prove them."
+    };
+  }
+
+  return {
+    decision: "apply_now",
+    label: "Apply now",
+    tone: "good",
+    reason: "The resume shows enough direct proof and no hard blocker was detected from the job post.",
+    blockers: [],
+    confirmations: [],
+    nextStep: "Use the resume-ready wording, then add numbers, tools, equipment, or schedule details only where they are true."
+  };
+}
+
+
 function buildSmartFixes(resumeText, jobText, targetFamily, selected, keywordData) {
   const hardRequirements = detectHardRequirements(jobText, resumeText, selected.family || targetFamily);
   const missing = cleanList([...(keywordData.criticalMissing || []), ...(keywordData.helpfulMissing || []), ...(keywordData.softMissing || [])].map(item => item.term));
   const proofGaps = getFamilyProofGaps(targetFamily, selected.label, keywordData.missing).filter(item => !getProofTerms(resumeText, targetFamily).includes(item));
-  return { hardRequirements, missingKeywords: missing, proofGaps };
+  const gigRisk = isGigOrLowQualityPost(jobText);
+  return { hardRequirements, missingKeywords: missing, proofGaps, gigRisk };
 }
 
 function safeResumeTitle(resumeText, family, selectedLabel, diagnosisCategory) {
@@ -1194,8 +1395,34 @@ function sanitizeCopyReadyOutput(output, analysis) {
 }
 
 function buildOutput(analysis) {
-  const { diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText } = analysis;
+  const { diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, applyDecision } = analysis;
   const proofNeeded = getProofNeeded(selectedFamily === "general" ? jobFamily.family : selectedFamily, keywordData.missing);
+
+  if (applyDecision?.decision === "be_careful") {
+    return {
+      summaryHeading: "Apply decision warning",
+      bulletHeading: "Verify before using this",
+      summary: "No job-specific resume rewrite generated. This post looks more like a gig, paid research task, survey, or low-quality remote opportunity than steady employment.",
+      bullets: [
+        applyDecision.reason,
+        "Verify the company, pay, schedule, interview process, and whether the work is guaranteed before giving personal information.",
+        "Never pay a fee, buy equipment through a link, accept a suspicious check, or give bank login information."
+      ]
+    };
+  }
+
+  if (applyDecision?.decision === "do_not_apply_yet" && applyDecision.blockers?.length) {
+    return {
+      summaryHeading: "Hard gate warning",
+      bulletHeading: "Proof needed before applying",
+      summary: `No ${selected.label}-specific rewrite generated. This job has a hard requirement the resume does not clearly prove: ${joinEnglish(applyDecision.blockers.map(item => item.label).slice(0, 5))}.`,
+      bullets: [
+        "Do not claim a required license, certification, clearance, endorsement, degree, or years of experience unless you truly have it.",
+        applyDecision.nextStep,
+        `Blocked requirement${applyDecision.blockers.length === 1 ? "" : "s"}: ${joinEnglish(applyDecision.blockers.map(item => item.label).slice(0, 6))}.`
+      ]
+    };
+  }
   const resumeFamilyLabel = FAMILY_LABELS[resumeFamily.family] || "the resume's current field";
   const jobFamilyLabel = FAMILY_LABELS[jobFamily.family] || selected.label;
 
@@ -1283,7 +1510,8 @@ function analyzeResume(resumeText, jobText, jobType) {
   const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms });
   const targetForFixes = targetFamily === "general" ? selectedFamily : targetFamily;
   const smartFixes = buildSmartFixes(resumeText, jobText, targetForFixes, selected, keywordData);
-  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes });
+  const applyDecision = buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily });
+  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes, applyDecision });
   let displayScore = keywordData.score;
   const missingConfirmations = smartFixes.hardRequirements.filter(item => !item.met).length + keywordData.helpfulMissing.length + keywordData.softMissing.length;
   if (displayScore >= 97 && missingConfirmations > 0) displayScore = 96;
@@ -1296,6 +1524,7 @@ function analyzeResume(resumeText, jobText, jobType) {
     keywordData,
     evidenceTerms,
     smartFixes,
+    applyDecision,
     diagnosis,
     output,
     score: displayScore
@@ -1374,6 +1603,29 @@ function renderDiagnosis(container, analysis) {
   `;
 }
 
+function renderApplyDecision(container, analysis) {
+  if (!container) return;
+  const decision = analysis.applyDecision || { label: "Apply decision unavailable", tone: "caution", reason: "Run the scan again.", blockers: [], confirmations: [], nextStep: "" };
+  const toneColors = {
+    good: { border: "rgba(167,255,206,0.45)", bg: "rgba(167,255,206,0.10)", title: "#a7ffce" },
+    caution: { border: "rgba(255,211,105,0.45)", bg: "rgba(255,211,105,0.10)", title: "#ffd369" },
+    warning: { border: "rgba(255,181,90,0.5)", bg: "rgba(255,181,90,0.12)", title: "#ffcf9a" },
+    danger: { border: "rgba(255,92,122,0.55)", bg: "rgba(255,92,122,0.12)", title: "#ffc2cc" }
+  };
+  const colors = toneColors[decision.tone] || toneColors.caution;
+  const blockerList = (decision.blockers || []).map(item => `<li>${escapeHTML(formatRequirementShort(item))}</li>`).join("");
+  const confirmList = (decision.confirmations || []).slice(0, 5).map(item => `<li>${escapeHTML(formatRequirementShort(item))}</li>`).join("");
+  container.innerHTML = `
+    <div style="border:1px solid ${colors.border};background:${colors.bg};border-radius:16px;padding:14px">
+      <h4 style="margin:0 0 8px;color:${colors.title};font-size:1.05rem">${escapeHTML(decision.label)}</h4>
+      <p style="margin:0 0 10px;color:#d6dbe6;line-height:1.55">${escapeHTML(decision.reason)}</p>
+      ${blockerList ? `<p style="margin:0 0 6px;color:#ffc2cc;font-weight:700">Hard blockers not clearly proven:</p><ul style="margin:0 0 10px 18px;color:#ffc2cc;line-height:1.5">${blockerList}</ul>` : ""}
+      ${confirmList ? `<p style="margin:0 0 6px;color:#ffd369;font-weight:700">Confirm before applying:</p><ul style="margin:0 0 10px 18px;color:#f4dfaa;line-height:1.5">${confirmList}</ul>` : ""}
+      <p style="margin:0;color:#a7b0bf;line-height:1.45"><strong>Next step:</strong> ${escapeHTML(decision.nextStep)}</p>
+    </div>
+  `;
+}
+
 function renderMissingKeywords(container, analysis) {
   if (!container) return;
   container.innerHTML = "";
@@ -1402,6 +1654,9 @@ function renderMatchedKeywords(container, analysis) {
 
 function buildRedFlags(resumeText, jobText, analysis) {
   const flags = [];
+  if (analysis.applyDecision) {
+    flags.push(`<strong>Apply decision:</strong> ${escapeHTML(analysis.applyDecision.label)} — ${escapeHTML(analysis.applyDecision.reason)}`);
+  }
   if (analysis.diagnosis.category === "wrong_job_type") {
     flags.push(`<strong>Wrong job type selected:</strong> switch the dropdown before copying any wording.`);
   }
@@ -1435,6 +1690,15 @@ function buildRedFlags(resumeText, jobText, analysis) {
 }
 
 function getScoreMessage(analysis) {
+  if (analysis.applyDecision?.decision === "do_not_apply_yet") {
+    return `${analysis.score}% match. ${analysis.applyDecision.label}: ${analysis.applyDecision.reason}`;
+  }
+  if (analysis.applyDecision?.decision === "apply_if_true") {
+    return `${analysis.score}% match. Apply only if the listed requirements are true.`;
+  }
+  if (analysis.applyDecision?.decision === "be_careful") {
+    return `${analysis.score}% match. Be careful: this looks like gig work or a low-quality posting.`;
+  }
   if (analysis.diagnosis.category === "wrong_job_type") {
     return `${analysis.score}% keyword overlap, but the selected job type is wrong. Fix the dropdown before using the report.`;
   }
@@ -1487,6 +1751,7 @@ function analyzeAndRender() {
   if ($("scoreMessage")) $("scoreMessage").textContent = getScoreMessage(analysis);
   if ($("scoreBar")) $("scoreBar").style.width = `${Math.max(5, analysis.score)}%`;
 
+  renderApplyDecision($("applyDecisionOutput"), analysis);
   renderDiagnosis($("diagnosisOutput"), analysis);
   renderMissingKeywords($("missingKeywords"), analysis);
   renderMatchedKeywords($("matchedKeywords"), analysis);
@@ -1509,7 +1774,7 @@ function clearAnalyzer() {
   if ($("scoreValue")) $("scoreValue").textContent = "0";
   if ($("scoreMessage")) $("scoreMessage").textContent = "";
   if ($("scoreBar")) $("scoreBar").style.width = "0%";
-  ["diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
+  ["applyDecisionOutput", "diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
     const el = $(id);
     if (el) el.textContent = "";
   });

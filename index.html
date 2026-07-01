@@ -128,8 +128,8 @@
           <button class="button secondary" type="button" data-open-account>Create Free Account</button>
         </div>
         <div class="hero-proof" aria-label="Product highlights">
-          <span>Match score</span>
-          <span>Honest diagnosis</span>
+          <span>Apply decision</span>
+          <span>Hard gate check</span>
           <span>No fake experience</span>
           <span>Tracker</span>
         </div>
@@ -154,13 +154,13 @@
     <section class="feature-strip" id="features" aria-label="Key features">
       <article class="feature-card">
         <span class="feature-icon">01</span>
-        <h3>Resume Match Score</h3>
-        <p>See how close your resume is to the job before you waste another application.</p>
+        <h3>Apply Decision Engine</h3>
+        <p>See whether to apply now, fix wording first, confirm a requirement, or skip the job.</p>
       </article>
       <article class="feature-card">
         <span class="feature-icon">02</span>
-        <h3>Honest Rewrite Gate</h3>
-        <p>Good matches get copy-ready wording. Weak matches get direction instead of fake bullets.</p>
+        <h3>Hard Requirement Gate</h3>
+        <p>Flags licenses, CDL endorsements, clearances, degrees, age rules, MVR, drug tests, and experience gates before rewriting.</p>
       </article>
       <article class="feature-card">
         <span class="feature-icon">03</span>
@@ -259,6 +259,12 @@
       </article>
 
       <article class="panel">
+        <p class="eyebrow">Apply Decision</p>
+        <h3>Should you apply?</h3>
+        <div class="copy-box" id="applyDecisionOutput">Run a scan to see if you should apply now, fix wording first, confirm a hard requirement, or skip the job.</div>
+      </article>
+
+      <article class="panel">
         <p class="eyebrow">Resume Direction</p>
         <h3>Honest ATS guidance</h3>
         <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, wording gap, weak evidence, or the wrong job type.</div>
@@ -354,7 +360,7 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=paid-logic-v4-smart-fix-checklist"></script>
+  <script type="module" src="app.js?v=apply-decision-gate-v1"></script>
   <script>
     // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {
