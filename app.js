@@ -1,6 +1,17 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "real-job-detector-v1";
+window.GMPT_APP_VERSION = "v6-job-targeting-engine";
+
+const APP_VALUES_AND_CONSTRAINTS = {
+  noPartialFamilyUpdates: true,
+  noGenericKeywordDumping: true,
+  proofBeforeRewrite: true,
+  coverAllCurrentJobFamilies: true,
+  separateAtsFitFromRecruiterFit: true,
+  rankApplicationPriority: true,
+  showFastestPathToInterviews: true,
+  rule: "When a feature improves resume coaching, it must cover every current job family, avoid generic fallback wording, separate keyword match from recruiter proof, and rank whether the job is worth the next application."
+};
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -1197,7 +1208,7 @@ function buildSelectedTypeWarning(realJobType, selected) {
   return `You selected ${selected.label}, but the duties read closer to ${realJobType.label}. Use the detected job type before trusting resume wording.`;
 }
 
-function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily }) {
+function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType }) {
   const reqs = smartFixes?.hardRequirements || [];
   const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
   const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
@@ -1242,6 +1253,20 @@ function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, 
       blockers: [],
       confirmations: unmetConfirm,
       nextStep: "Switch the job type or use General / Any Job, then scan again before copying wording."
+    };
+  }
+
+  const job = normalize(jobText || "");
+  const trainingAllowed = hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days"]);
+  if (diagnosis.category === "weak_evidence" && trainingAllowed) {
+    return {
+      decision: "apply_if_true",
+      label: "Apply only if these are true",
+      tone: "warning",
+      reason: "This posting appears to train new hires, but the resume still needs to show the required license, screening, physical, route, worksite, or training eligibility items.",
+      blockers: unmetHard,
+      confirmations: unmetConfirm,
+      nextStep: "Do not claim the trained skill yet. Use the safe trainee wording and confirm every license, MVR, background, drug screen, schedule, ladder, PPE, or physical requirement before applying."
     };
   }
 
@@ -1633,6 +1658,293 @@ function buildOutput(analysis) {
   }, analysis);
 }
 
+
+
+// V6: Job Targeting Engine. Separates ATS keyword fit from recruiter proof and ranks whether this job is worth the next application.
+const V6_STRICT_BLOCKER_GATES = new Set([
+  "cdl_a", "tanker", "hazmat", "license_restrictions", "manual_transmission", "rn_license", "lpn_license", "cna",
+  "teaching_certification", "bachelors", "epa_universal", "food_equipment_certificate", "ts_sci_poly", "senior_sql",
+  "senior_cyber", "dotnet_dev", "wonderware", "citizenship", "it_certification"
+]);
+
+const V6_ADVANCED_SUBTYPES = new Set([
+  "sql_server_dba", "cleared_python_software_engineer", "dotnet_web_developer", "qa_automation_developer",
+  "cybersecurity_grc_analyst", "industrial_automation_scada", "commercial_kitchen_equipment_tech",
+  "cdl_tanker_hazmat_driver", "certified_classroom_teacher"
+]);
+
+const V6_LICENSE_OR_GATE_WORDS = /(license|certification|certified|clearance|polygraph|endorsement|cdl|degree|citizen|mvr|driver|rn|lpn|cna|epa|hazmat|tanker|bachelor)/i;
+
+const V6_FAMILY_TARGETS = {
+  manufacturing: {
+    strong: ["Machine Operator", "Production Worker", "Assembly Worker", "Packaging Associate", "Industrial Utility Worker"],
+    possible: ["Quality Inspector", "Industrial Shipping Loader", "Material Handler", "Forklift Operator", "Maintenance Helper"],
+    highRisk: ["CNC Machinist", "Industrial Maintenance Technician", "Manufacturing Supervisor", "Controls Technician"]
+  },
+  warehouse: {
+    strong: ["Warehouse Associate", "Material Handler", "Package Handler", "Order Picker", "Receiving Associate"],
+    possible: ["Forklift Operator", "Shipping Loader", "Inventory Control Clerk", "Yard Worker", "Fleet Parts Helper"],
+    highRisk: ["Logistics Coordinator", "Warehouse Supervisor", "CDL Driver", "SAP Supply Chain Specialist"]
+  },
+  healthcare: {
+    strong: ["Caregiver", "Home Health Aide", "Patient Transporter", "Unit Support Aide", "Healthcare Support Trainee"],
+    possible: ["CNA", "Patient Care Technician", "Medical Assistant", "Mental Health Technician", "Phlebotomy Trainee"],
+    highRisk: ["RN", "LPN", "Phlebotomist without certification", "Medication Tech", "Clinical Supervisor"]
+  },
+  healthcare_admin: {
+    strong: ["Medical Front Desk", "Patient Registration", "Medical Records Clerk", "Unit Secretary", "Insurance Verification Clerk"],
+    possible: ["Medical Billing Assistant", "Medical Coding Trainee", "Referral Coordinator", "Dental Front Desk"],
+    highRisk: ["Certified Medical Coder", "Revenue Cycle Analyst", "Billing Manager", "Clinical Medical Assistant"]
+  },
+  maintenance: {
+    strong: ["Maintenance Helper", "Apartment Maintenance Helper", "Facilities Assistant", "Hotel Maintenance", "Porter/Grounds Maintenance"],
+    possible: ["Apartment Maintenance Technician", "Preventive Maintenance Tech", "Appliance Repair Helper", "Commercial Equipment Helper"],
+    highRisk: ["Industrial Maintenance Technician", "Maintenance Supervisor", "Commercial HVAC Technician", "EPA-required HVAC role"]
+  },
+  electrical: {
+    strong: ["Electrical Helper", "Low-Voltage Helper", "Residential Electrical Helper", "Installer Helper"],
+    possible: ["Apprentice Electrician", "Security Alarm Installer", "Cable Installation Technician", "Maintenance Helper"],
+    highRisk: ["Licensed Electrician", "Industrial Electrician", "Journeyman Electrician", "Controls Electrician"]
+  },
+  welding: {
+    strong: ["Welder Helper", "Fabrication Helper", "Shop Laborer", "Grinder", "Production Helper"],
+    possible: ["Production MIG Welder", "Structural Welder Helper", "Pipefitter Helper", "Metal Fabrication Worker"],
+    highRisk: ["Certified Pipe Welder", "ASME Welder", "TIG Pipe Welder", "Combo Welder-Fitter"]
+  },
+  diesel: {
+    strong: ["Diesel Mechanic Helper", "Lube Technician", "Fleet Maintenance Helper", "Tire/Service Technician"],
+    possible: ["Entry-Level Diesel Technician", "Trailer Mechanic Helper", "Heavy Equipment PM Technician", "Shop Assistant"],
+    highRisk: ["Experienced Diesel Mechanic", "Heavy Equipment Field Tech", "Hydraulics Technician", "ASE Master Diesel Tech"]
+  },
+  construction: {
+    strong: ["Construction Laborer", "Carpenter Helper", "Installer Helper", "Demolition Laborer", "Fence Installer Helper"],
+    possible: ["Concrete Laborer", "Roofing Helper", "Drywall Helper", "Scaffold Builder Helper", "Painter Helper"],
+    highRisk: ["Journeyman Carpenter", "Concrete Finisher", "Commercial Roofer", "Certified Scaffold Builder", "Heavy Equipment Operator"]
+  },
+  customer_service: {
+    strong: ["Retail Customer Service", "Front Desk Associate", "Call Center Representative", "Cashier", "Customer Support Representative"],
+    possible: ["Appointment Setter", "Insurance CSR", "Utility Customer Service", "Bank Teller", "Inside Sales Assistant"],
+    highRisk: ["Licensed Insurance Agent", "Collections Specialist", "Account Manager", "Outside Sales Representative"]
+  },
+  office: {
+    strong: ["Office Assistant", "Receptionist", "Data Entry Clerk", "Records Clerk", "Scheduling Assistant"],
+    possible: ["Administrative Assistant", "HR Assistant", "Project Admin", "School Attendance Clerk", "Government Clerk"],
+    highRisk: ["Bookkeeper", "Executive Assistant", "Payroll Specialist", "Legal Assistant", "Compliance Coordinator"]
+  },
+  driving: {
+    strong: ["Non-CDL Delivery Driver", "Driver Helper", "Route Assistant", "Warehouse-to-Driver Trainee", "Yard Worker"],
+    possible: ["CDL-A Recent Graduate", "CDL-A Dry Van Entry-Level", "Box Truck Driver", "Yard Spotter", "Local Route Driver"],
+    highRisk: ["CDL-A Tanker/Hazmat", "Manual 10-Speed CDL", "Ready Mix Driver", "Dump Truck Driver", "Experienced OTR Driver"]
+  },
+  security: {
+    strong: ["Unarmed Security Officer", "Gatehouse Access Control", "Front Desk Security", "Warehouse Security", "Event Security"],
+    possible: ["Hospital Security", "Loss Prevention Associate", "Security Patrol Officer", "Security Installation Helper"],
+    highRisk: ["Armed Security", "Security Supervisor", "Law Enforcement Officer", "Alarm Installer with permit required"]
+  },
+  cleaning: {
+    strong: ["Janitor", "Custodian", "Housekeeper", "Porter", "Laundry Attendant"],
+    possible: ["Hospital EVS", "Floor Technician Helper", "Industrial Cleaner", "Hotel Room Attendant"],
+    highRisk: ["Hazardous Waste Cleaner", "Floor Care Lead", "Biohazard Cleaner", "EVS Supervisor"]
+  },
+  food_service: {
+    strong: ["Dishwasher", "Prep Cook", "Fast Food Crew", "Server", "Host"],
+    possible: ["Line Cook", "Hospital Food Service", "Grocery Deli Associate", "Catering Attendant", "Banquet Server"],
+    highRisk: ["Kitchen Manager", "Sous Chef", "HACCP Quality Tech", "Certified Dietary Manager"]
+  },
+  education: {
+    strong: ["Teacher Assistant", "Substitute Teacher", "Daycare Assistant", "Tutor", "Youth Program Worker"],
+    possible: ["Daycare Teacher", "Preschool Teacher", "Early Childhood Assistant", "Special Needs Aide", "Alternative Certification Teacher"],
+    highRisk: ["Certified K-12 Teacher", "Special Education Teacher", "School Counselor", "Educational Leadership"]
+  },
+  it: {
+    strong: ["Help Desk Technician", "Desktop Support Trainee", "Computer Support Assistant", "IT Support Intern", "Technical Support Representative"],
+    possible: ["Desktop Support Technician", "Application Support", "Junior Data Analyst", "SOC Trainee", "QA Tester Trainee"],
+    highRisk: ["SQL Server DBA", "Cybersecurity GRC Analyst", "Software Developer", "Cloud/DevOps Engineer", "Cleared Software Engineer"]
+  },
+  general: {
+    strong: ["Jobs that match your exact recent work history", "Trainee roles with training provided", "Helper roles tied to your real tools or worksites"],
+    possible: ["Adjacent roles with similar duties", "Entry-level roles with clear requirements", "Roles where the posting says no experience required"],
+    highRisk: ["Licensed roles", "Clearance roles", "Advanced tech roles", "Jobs with vague pay or paid survey language"]
+  }
+};
+
+const V6_SUBTYPE_TARGETS = {
+  pest_control_technician: {
+    strong: ["Pest Control Technician Trainee", "Route Service Technician", "Field Service Trainee", "Utility Meter Reader", "Delivery Route Driver"],
+    possible: ["Cable Installer Trainee", "Security Installation Helper", "Apartment Maintenance Helper", "Lawn Care Route Technician"],
+    highRisk: ["Licensed Pesticide Applicator", "Termite Specialist", "Pest Control Supervisor"]
+  },
+  cable_installation_technician: {
+    strong: ["Cable Installation Trainee", "Telecom Field Technician Trainee", "Low-Voltage Helper", "Security Alarm Installer Helper", "Field Service Installer"],
+    possible: ["Electrical Helper", "Smart Home Installer", "Utility Field Technician", "Maintenance Helper"],
+    highRisk: ["Fiber Splicer", "Network Technician", "Licensed Low-Voltage Lead", "Telecom Supervisor"]
+  },
+  security_installation_technician: {
+    strong: ["Security Alarm Installer Helper", "Low-Voltage Helper", "Camera Installation Helper", "Cable Installer Trainee"],
+    possible: ["Access Control Helper", "Field Service Installer", "Electrical Helper", "Smart Home Technician"],
+    highRisk: ["Licensed Alarm Technician", "Fire Alarm Technician", "Security Systems Lead", "Networked Access Control Specialist"]
+  },
+  paid_survey_focus_group: {
+    strong: ["Real Data Entry Clerk", "Customer Service Representative", "Office Assistant", "Call Center Representative"],
+    possible: ["Product Tester only as side income", "Market Research Participant only as gig work"],
+    highRisk: ["Any posting asking for money", "Fake check equipment jobs", "Crypto or gift card payment jobs"]
+  },
+  certified_classroom_teacher: V6_FAMILY_TARGETS.education,
+  early_childhood_teacher: V6_FAMILY_TARGETS.education,
+  sql_server_dba: V6_FAMILY_TARGETS.it,
+  cleared_python_software_engineer: V6_FAMILY_TARGETS.it,
+  dotnet_web_developer: V6_FAMILY_TARGETS.it,
+  qa_automation_developer: V6_FAMILY_TARGETS.it,
+  cybersecurity_grc_analyst: V6_FAMILY_TARGETS.it,
+  industrial_automation_scada: V6_FAMILY_TARGETS.it,
+  commercial_kitchen_equipment_tech: V6_FAMILY_TARGETS.maintenance,
+  auto_body_collision_tech: {
+    strong: ["Auto Body Helper", "Collision Repair Helper", "Paint Prep Assistant", "Detail/Body Shop Assistant"],
+    possible: ["Tire/Lube Technician", "Automotive Apprentice", "Parts Associate", "Shop Helper"],
+    highRisk: ["Experienced Collision Technician", "I-CAR Technician", "Frame Technician", "Painter"]
+  },
+  cdl_tanker_hazmat_driver: V6_FAMILY_TARGETS.driving,
+  cdl_local_dedicated_driver: V6_FAMILY_TARGETS.driving,
+  railcar_switchman: {
+    strong: ["Rail Yard Laborer", "Industrial Yard Worker", "Plant Utility Worker", "Material Handler", "Forklift Operator"],
+    possible: ["Railcar Switchman Trainee", "Trackmobile Helper", "Industrial Shipping Loader", "Warehouse Yard Spotter"],
+    highRisk: ["Experienced Switchman", "Locomotive Operator", "Rail Conductor", "Hazmat Rail Loading"]
+  },
+  industrial_shipping_loader: V6_FAMILY_TARGETS.warehouse
+};
+
+function clampV6Score(value) {
+  return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+}
+
+function v6TrainingAllowed(jobText) {
+  const job = normalize(jobText || "");
+  return hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days", "trainee", "apprentice"]);
+}
+
+function v6GetReqBuckets(smartFixes) {
+  const reqs = smartFixes?.hardRequirements || [];
+  const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
+  const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
+  const strictBlockers = unmetHard.filter(item => V6_STRICT_BLOCKER_GATES.has(item.gate));
+  const licenseGates = reqs.filter(item => V6_LICENSE_OR_GATE_WORDS.test(item.label));
+  return { reqs, unmetHard, unmetConfirm, strictBlockers, licenseGates };
+}
+
+function v6CapAtsScore(baseScore, smartFixes, realJobType, diagnosis, jobText) {
+  const buckets = v6GetReqBuckets(smartFixes);
+  let score = Number(baseScore) || 0;
+  if (smartFixes?.gigRisk?.hit) score = Math.min(score, 20);
+  if (buckets.strictBlockers.some(item => item.gate === "ts_sci_poly")) score = Math.min(score, 25);
+  if (buckets.strictBlockers.some(item => ["rn_license", "lpn_license", "cna", "teaching_certification", "bachelors"].includes(item.gate))) score = Math.min(score, 35);
+  if (buckets.strictBlockers.some(item => ["cdl_a", "tanker", "hazmat", "manual_transmission", "license_restrictions"].includes(item.gate))) score = Math.min(score, 45);
+  if (buckets.strictBlockers.length) score = Math.min(score, 50);
+  if (V6_ADVANCED_SUBTYPES.has(realJobType?.id) && diagnosis.category === "weak_evidence") score = Math.min(score, 40);
+  if (diagnosis.category === "wrong_job_type") score = Math.min(score, 55);
+  if (diagnosis.category === "weak_evidence" && !v6TrainingAllowed(jobText)) score = Math.min(score, 48);
+  if (v6TrainingAllowed(jobText) && !buckets.strictBlockers.length) score = Math.max(score, Math.min(72, score + 6));
+  return clampV6Score(score);
+}
+
+function v6RecruiterFitScore({ atsFit, diagnosis, smartFixes, keywordData, evidenceTerms, realJobType, jobText }) {
+  const buckets = v6GetReqBuckets(smartFixes);
+  let score = Number(atsFit) || Number(keywordData?.score) || 0;
+  score -= buckets.strictBlockers.length * 22;
+  score -= Math.max(0, buckets.unmetHard.length - buckets.strictBlockers.length) * 10;
+  score -= buckets.unmetConfirm.length * 3;
+  score -= (keywordData?.criticalMissing || []).length * 5;
+  score -= (keywordData?.helpfulMissing || []).length * 2;
+  if ((evidenceTerms || []).length < 2) score -= 12;
+  if ((evidenceTerms || []).length >= 5) score += 8;
+  if (diagnosis.category === "strong_match") score += 8;
+  if (diagnosis.category === "good_match") score += 4;
+  if (diagnosis.category === "medium_match") score -= 5;
+  if (diagnosis.category === "transferable") score -= 12;
+  if (diagnosis.category === "weak_evidence") score -= v6TrainingAllowed(jobText) ? 8 : 22;
+  if (diagnosis.category === "wrong_job_type") score -= 30;
+  if (V6_ADVANCED_SUBTYPES.has(realJobType?.id) && diagnosis.category !== "strong_match" && diagnosis.category !== "good_match") score -= 12;
+  if (smartFixes?.gigRisk?.hit) score = Math.min(score, 15);
+  return clampV6Score(score);
+}
+
+function buildProofImpact(analysisLike) {
+  const buckets = v6GetReqBuckets(analysisLike.smartFixes);
+  const hardLabels = buckets.unmetHard.map(item => item.label);
+  const strictLabels = buckets.strictBlockers.map(item => item.label);
+  const proofGaps = analysisLike.smartFixes?.proofGaps || [];
+  const critical = (analysisLike.keywordData?.criticalMissing || []).map(item => item.term);
+  const helpful = (analysisLike.keywordData?.helpfulMissing || []).map(item => item.term);
+  const soft = (analysisLike.keywordData?.softMissing || []).map(item => item.term);
+  const blocksApplication = cleanList([...strictLabels, ...hardLabels]).slice(0, 7);
+  const hurtsInterviewChance = cleanList([...proofGaps, ...critical]).filter(item => !blocksApplication.includes(item)).slice(0, 8);
+  const easyWordingFix = cleanList([...helpful, ...soft]).filter(item => !blocksApplication.includes(item) && !hurtsInterviewChance.includes(item)).slice(0, 8);
+  return { blocksApplication, hurtsInterviewChance, easyWordingFix };
+}
+
+function buildApplicationPriority({ applyDecision, atsFit, recruiterFit, proofImpact, smartFixes, diagnosis }) {
+  const buckets = v6GetReqBuckets(smartFixes);
+  if (smartFixes?.gigRisk?.hit || applyDecision?.decision === "be_careful") {
+    return { grade: "F", label: "Priority F — Skip or verify first", tone: "danger", reason: "This looks like gig work, low-quality work, or a posting that needs verification before you spend application time.", nextMove: "Do not upload personal financial information. Verify the company, pay, schedule, and hiring process first." };
+  }
+  if (buckets.strictBlockers.length || applyDecision?.decision === "do_not_apply_yet") {
+    return { grade: "F", label: "Priority F — Skip for now", tone: "danger", reason: "A hard credential, license, clearance, endorsement, degree, or advanced-skill gate may block the application before ATS wording matters.", nextMove: "Apply to closer roles first or get the missing license, endorsement, clearance, degree, certification, or exact experience." };
+  }
+  if (applyDecision?.decision === "apply_if_true" || buckets.unmetHard.length || buckets.unmetConfirm.length) {
+    return { grade: "C", label: "Priority C — Apply only if gate is true", tone: "warning", reason: "The job has requirements that are not clearly shown in the resume yet.", nextMove: "Confirm the requirement, then add it only where your real proof supports it." };
+  }
+  if (atsFit >= 75 && recruiterFit >= 70 && (diagnosis?.category === "strong_match" || diagnosis?.category === "good_match" || applyDecision?.decision === "apply_now")) {
+    return { grade: "A", label: "Priority A — Apply today", tone: "good", reason: "The resume has both ATS keyword fit and enough recruiter proof to be worth a fast application.", nextMove: "Apply today after adding truthful numbers, tools, equipment, shifts, route details, or worksite details." };
+  }
+  if (atsFit >= 55 && recruiterFit >= 50) {
+    return { grade: "B", label: "Priority B — Apply after fixing wording", tone: "caution", reason: "This job is reachable, but the resume needs stronger proof wording before applying.", nextMove: "Use the proof coach and resume-ready wording, then apply." };
+  }
+  return { grade: "D", label: "Priority D — Save for later", tone: "warning", reason: "This is a possible direction, but it is probably not the fastest path to interviews yet.", nextMove: "Apply to safer nearby roles first while building the missing proof." };
+}
+
+function getV6TargetBank(analysisLike) {
+  const subtypeBank = V6_SUBTYPE_TARGETS[analysisLike.realJobType?.id];
+  if (subtypeBank) return subtypeBank;
+  const family = analysisLike.selectedFamily === "general" ? analysisLike.jobFamily?.family : analysisLike.selectedFamily;
+  return V6_FAMILY_TARGETS[family] || V6_FAMILY_TARGETS.general;
+}
+
+function buildFastestPathToInterviews(analysisLike, priority) {
+  const bank = getV6TargetBank(analysisLike);
+  const currentLabel = analysisLike.realJobType?.label || analysisLike.selected?.label || "this job";
+  let applyFirst = bank.strong || [];
+  let applyAfterProof = bank.possible || [];
+  let avoidForNow = bank.highRisk || [];
+  let coachNote = "Put the most applications into roles where your resume already proves the daily tasks, tools, worksite, license, or training level.";
+
+  if (priority?.grade === "A") {
+    applyFirst = cleanList([currentLabel, ...applyFirst]).slice(0, 7);
+    coachNote = "This job belongs near the top of the list. Apply today, then keep applying to similar roles with the same proof pattern.";
+  } else if (priority?.grade === "B") {
+    applyFirst = cleanList([currentLabel, ...applyFirst]).slice(0, 7);
+    coachNote = "This job can be worth applying to after wording is fixed. Similar roles should be part of the weekly target list.";
+  } else if (priority?.grade === "C") {
+    applyAfterProof = cleanList([currentLabel, ...applyAfterProof]).slice(0, 7);
+    coachNote = "This job may be possible only after confirming a gate. Do not spend all your applications here until the gate is clear.";
+  } else {
+    avoidForNow = cleanList([currentLabel, ...avoidForNow]).slice(0, 7);
+    coachNote = "This job is not the fastest path right now. Use the apply-first list to get interviews while building the missing proof.";
+  }
+
+  return {
+    applyFirst: cleanList(applyFirst).slice(0, 7),
+    applyAfterProof: cleanList(applyAfterProof).slice(0, 7),
+    avoidForNow: cleanList(avoidForNow).slice(0, 7),
+    coachNote
+  };
+}
+
+function buildV6Strategy({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType, selected, selectedFamily, evidenceTerms }) {
+  const atsFit = v6CapAtsScore(keywordData.score, smartFixes, realJobType, diagnosis, jobText);
+  const recruiterFit = v6RecruiterFitScore({ atsFit, diagnosis, smartFixes, keywordData, evidenceTerms, realJobType, jobText });
+  const proofImpact = buildProofImpact({ smartFixes, keywordData });
+  return { atsFit, recruiterFit, proofImpact };
+}
+
 function analyzeResume(resumeText, jobText, jobType) {
   const selected = getSelectedJobType(jobType);
   const selectedFamily = selected.family;
@@ -1648,10 +1960,13 @@ function analyzeResume(resumeText, jobText, jobType) {
   const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms });
   const targetForFixes = targetFamily === "general" ? selectedFamily : targetFamily;
   const smartFixes = buildSmartFixes(resumeText, jobText, targetForFixes, selected, keywordData);
-  const applyDecision = buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily });
   const realJobType = detectRealJobType(jobText, selected, jobFamily);
+  const applyDecision = buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType });
+  const v6Base = buildV6Strategy({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType, selected, selectedFamily, evidenceTerms });
+  const applicationPriority = buildApplicationPriority({ applyDecision, atsFit: v6Base.atsFit, recruiterFit: v6Base.recruiterFit, proofImpact: v6Base.proofImpact, smartFixes, diagnosis });
+  const fastestPath = buildFastestPathToInterviews({ selected, selectedFamily, jobFamily, resumeFamily, realJobType }, applicationPriority);
   const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes, applyDecision, realJobType });
-  let displayScore = keywordData.score;
+  let displayScore = v6Base.atsFit;
   const missingConfirmations = smartFixes.hardRequirements.filter(item => !item.met).length + keywordData.helpfulMissing.length + keywordData.softMissing.length;
   if (displayScore >= 97 && missingConfirmations > 0) displayScore = 96;
 
@@ -1667,6 +1982,11 @@ function analyzeResume(resumeText, jobText, jobType) {
     realJobType,
     diagnosis,
     output,
+    atsFit: displayScore,
+    recruiterFit: v6Base.recruiterFit,
+    proofImpact: v6Base.proofImpact,
+    applicationPriority,
+    fastestPath,
     score: displayScore
   };
 }
@@ -1798,11 +2118,78 @@ function renderApplyDecision(container, analysis) {
   `;
 }
 
+
+
+function renderApplicationPriority(container, analysis) {
+  if (!container) return;
+  const priority = analysis.applicationPriority || { label: "Priority unavailable", tone: "caution", reason: "Run the scan again.", nextMove: "" };
+  const toneColors = {
+    good: { border: "rgba(167,255,206,0.45)", bg: "rgba(167,255,206,0.10)", title: "#a7ffce" },
+    caution: { border: "rgba(255,211,105,0.45)", bg: "rgba(255,211,105,0.10)", title: "#ffd369" },
+    warning: { border: "rgba(255,181,90,0.5)", bg: "rgba(255,181,90,0.12)", title: "#ffcf9a" },
+    danger: { border: "rgba(255,92,122,0.55)", bg: "rgba(255,92,122,0.12)", title: "#ffc2cc" }
+  };
+  const colors = toneColors[priority.tone] || toneColors.caution;
+  container.innerHTML = `
+    <div style="border:1px solid ${colors.border};background:${colors.bg};border-radius:16px;padding:14px">
+      <h4 style="margin:0 0 8px;color:${colors.title};font-size:1.08rem">${escapeHTML(priority.label)}</h4>
+      <p style="margin:0 0 10px;color:#d6dbe6;line-height:1.55">${escapeHTML(priority.reason)}</p>
+      <p style="margin:0;color:#a7b0bf;line-height:1.45"><strong>Best next move:</strong> ${escapeHTML(priority.nextMove)}</p>
+    </div>
+  `;
+}
+
+function renderFitBar(label, value, color) {
+  const safeValue = clampV6Score(value);
+  return `
+    <div style="margin:10px 0 0">
+      <div style="display:flex;justify-content:space-between;gap:12px;color:#d6dbe6;font-weight:800"><span>${escapeHTML(label)}</span><span>${safeValue}%</span></div>
+      <div style="height:9px;border-radius:999px;background:rgba(255,255,255,0.10);overflow:hidden;margin-top:6px">
+        <span style="display:block;width:${Math.max(4, safeValue)}%;height:100%;background:${color};border-radius:999px"></span>
+      </div>
+    </div>
+  `;
+}
+
+function renderImpactList(title, items, color, emptyText) {
+  const list = cleanList(items).slice(0, 6);
+  const body = list.length ? `<ul style="margin:6px 0 0 18px;color:#d6dbe6;line-height:1.5">${list.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>` : `<p style="margin:6px 0 0;color:#a7b0bf;line-height:1.45">${escapeHTML(emptyText)}</p>`;
+  return `<div style="margin-top:12px"><p style="margin:0;color:${color};font-weight:800">${escapeHTML(title)}</p>${body}</div>`;
+}
+
+function renderFitScores(container, analysis) {
+  if (!container) return;
+  const impact = analysis.proofImpact || { blocksApplication: [], hurtsInterviewChance: [], easyWordingFix: [] };
+  container.innerHTML = `
+    <div style="border:1px solid rgba(125,211,252,0.35);background:rgba(125,211,252,0.08);border-radius:16px;padding:14px">
+      <p style="margin:0;color:#d6dbe6;line-height:1.55">ATS fit shows keyword coverage. Recruiter fit shows whether the resume proves the job well enough for a human to believe it.</p>
+      ${renderFitBar("ATS fit", analysis.atsFit ?? analysis.score ?? 0, "rgba(125,211,252,0.95)")}
+      ${renderFitBar("Recruiter fit", analysis.recruiterFit ?? 0, "rgba(167,255,206,0.95)")}
+      ${renderImpactList("Blocks application", impact.blocksApplication, "#ffc2cc", "No hard blocker was detected from this job post.")}
+      ${renderImpactList("Hurts interview chance", impact.hurtsInterviewChance, "#ffd369", "No major recruiter proof gap was detected beyond normal wording fixes.")}
+      ${renderImpactList("Easy wording fix", impact.easyWordingFix, "#a7ffce", "No easy keyword-only fix detected. Focus on the proof coach.")}
+    </div>
+  `;
+}
+
+function renderFastestPath(container, analysis) {
+  if (!container) return;
+  const path = analysis.fastestPath || { applyFirst: [], applyAfterProof: [], avoidForNow: [], coachNote: "Run the scan again." };
+  container.innerHTML = `
+    <div style="border:1px solid rgba(167,255,206,0.35);background:rgba(167,255,206,0.08);border-radius:16px;padding:14px">
+      ${renderImpactList("Apply first", path.applyFirst, "#a7ffce", "No apply-first targets available from this scan.")}
+      ${renderImpactList("Apply after building proof", path.applyAfterProof, "#ffd369", "No build-toward targets available from this scan.")}
+      ${renderImpactList("Avoid for now", path.avoidForNow, "#ffc2cc", "No avoid-for-now roles were identified.")}
+      <p style="margin:14px 0 0;color:#d6dbe6;line-height:1.55"><strong>Coach note:</strong> ${escapeHTML(path.coachNote)}</p>
+    </div>
+  `;
+}
+
 function renderMissingKeywords(container, analysis) {
   if (!container) return;
   container.innerHTML = "";
   const summary = document.createElement("p");
-  summary.textContent = `Smart match: ${analysis.score}% weighted job-skill coverage. Generic words are ignored; only useful job skills are shown.`;
+  summary.textContent = `Smart match: ${analysis.score}% weighted job-skill coverage. This section lists exact proof gaps; the coach card above explains how to use them safely.`;
   summary.style.margin = "0 0 14px";
   summary.style.color = "#a7b0bf";
   summary.style.lineHeight = "1.45";
@@ -1810,12 +2197,438 @@ function renderMissingKeywords(container, analysis) {
 
   const hardReqs = analysis.smartFixes?.hardRequirements || [];
   if (hardReqs.length) {
-    renderKeywordGroup(container, "Hard Requirements / Confirm Before Applying", hardReqs.map(formatHardRequirement), "These come from the job post. Add proof to your resume only if it is true, and confirm requirements before applying.");
+    renderKeywordGroup(container, "Job-post requirements to confirm", hardReqs.map(formatHardRequirement), "Confirm these before applying. Put licenses, certifications, clearances, degrees, endorsements, and MVR details on the resume only when accurate.");
   }
 
-  renderKeywordGroup(container, "Required Proof Gaps", analysis.smartFixes?.proofGaps || analysis.keywordData.criticalMissing, "These are the main proof areas the resume may not show. Add only the ones you actually have.");
-  renderKeywordGroup(container, "Possible ATS Keywords to Add Only If True", analysis.keywordData.helpfulMissing, "These can improve ATS wording when they are true. Do not silently add them to the resume.");
-  renderKeywordGroup(container, "Soft / Supporting Details Missing", analysis.keywordData.softMissing, "These matter less than hard job duties and certifications, but can help when true.");
+  renderKeywordGroup(container, "Main proof gaps", analysis.smartFixes?.proofGaps || analysis.keywordData.criticalMissing, "These are the work tasks, tools, credentials, or conditions the resume does not clearly prove yet.");
+  renderKeywordGroup(container, "Specific task words missing", analysis.keywordData.helpfulMissing, "Use the Keyword Proof Coach before adding any of these to the resume.");
+  renderKeywordGroup(container, "Worksite or schedule details missing", analysis.keywordData.softMissing, "Add these only when the resume can show the exact shift, worksite, route, lift amount, tool, or condition.");
+}
+
+
+// V6: Keyword Proof Coach. This avoids generic keyword dumps and tells users what real proof is needed.
+function proofCoachItem(label, proofCounts, safeWording, doNotWrite, place, danger = "Medium", patterns = []) {
+  return { label, proofCounts, safeWording, doNotWrite, place, danger, patterns };
+}
+
+const PROOF_COACH_BY_SUBTYPE = {
+  pest_control_technician: {
+    note: "This job may train new pest-control workers. Do not claim pesticide application, pest identification, or treatment planning unless you have done that work. Build the resume around route stops, customer homes, inspection notes, ladders, crawl spaces, PPE, and license completion after hire when the post allows it.",
+    items: [
+      proofCoachItem("obtained or can obtain pesticide license within the required deadline", "current pesticide license, prior pest-control license, official license training, or a posting that says company-paid licensing after hire", "Willing and able to complete company-paid pesticide licensing within the required 90-day period.", "Licensed pesticide applicator, unless that license is active.", "Certifications or summary, depending on whether it is active or future training", "High", ["pesticide", "pest control license", "applicator"]),
+      proofCoachItem("inspected customer property and recorded findings", "interior/exterior walkthroughs, property checks, equipment checks, home/building inspections, customer-site checklists, or written findings", "Inspected assigned customer areas and recorded findings before completing service steps.", "Pest treatment planning, unless you have pest-control experience.", "Work experience bullet", "Medium", ["inspect", "inspection", "property", "customer site", "walkthrough"]),
+      proofCoachItem("drove assigned routes to customer homes or businesses", "route stops, delivery routes, field-service calls, customer-site jobs, assigned territory work, or dispatch-driven travel", "Completed assigned route stops at customer locations while keeping timing and service notes accurate.", "Managed a pest-control route, unless that was your actual job.", "Work experience bullet", "Medium", ["route", "delivery", "dispatch", "customer homes", "customer site", "assigned territory"]),
+      proofCoachItem("entered service notes on a handheld device or work system", "handheld device, scanner, tablet, work-order app, delivery app, service report, job notes, photos, signatures, or completion times", "Entered service notes, completion details, and customer updates into assigned work systems.", "Pest service documentation, unless the notes were for pest-control jobs.", "Work experience bullet", "Low", ["scanner", "handheld", "tablet", "work order", "service report", "documentation", "notes"]),
+      proofCoachItem("worked in crawl spaces, attics, rooftops, or confined areas", "actual work in crawl spaces, attics, rooftops, tight spaces, under homes, ladders, or elevated areas", "Worked safely in tight or elevated areas while following assigned safety procedures.", "Crawl-space pest inspection, unless that was the actual task.", "Work experience bullet", "Medium", ["crawl", "attic", "rooftop", "confined", "ladder", "heights"])
+    ]
+  },
+  cable_installation_technician: {
+    note: "Do not claim HSI, CDV, XHS, fiber, or cable installation unless you have installed that service. Use proof from tools, ladders, customer homes, dispatch updates, service reports, low-voltage work, alarm cameras, or electrical helper work when true.",
+    items: [
+      proofCoachItem("installed internet, cable, phone, alarm, camera, or low-voltage systems", "hands-on installs involving coax, fiber, Ethernet, phone, cameras, alarm panels, sensors, outlets, wiring, routers, or low-voltage devices", "Installed and tested customer-site wiring, devices, or service equipment during assigned jobs.", "HSI, CDV, XHS, or fiber installation, unless you actually installed those services.", "Work experience bullet", "High", ["install", "installed", "cable", "internet", "fiber", "ethernet", "camera", "alarm", "low voltage", "wiring"]),
+      proofCoachItem("updated dispatch with arrival, delay, departure, or completion details", "calls/texts/apps to dispatch, supervisor route updates, delivery app updates, arrival times, delay notes, or completion times", "Updated dispatch or supervisors with arrival, delay, departure, and completion information during assigned route work.", "Cable dispatch coordination, unless the dispatch updates were for cable/telecom jobs.", "Work experience bullet", "Medium", ["dispatch", "arrival", "delay", "departure", "completion", "route"]),
+      proofCoachItem("used ladders at customer homes or businesses", "ladder work, roofline work, ceiling access, attics, utility areas, or elevated installation/repair tasks", "Used ladders safely during customer-site installation, repair, or service tasks.", "28-foot ladder experience, unless you used ladders around that height.", "Work experience bullet", "Medium", ["ladder", "ladders", "heights", "attic", "ceiling"]),
+      proofCoachItem("tested equipment after installation or repair", "checked connections, devices, sensors, routers, operating systems, signal, power, customer equipment, or system settings after work", "Tested installed or serviced equipment to confirm it worked before leaving the job site.", "Telecom signal testing, unless you actually tested cable/telecom signal or equipment.", "Work experience bullet", "Medium", ["tested", "testing", "troubleshoot", "connections", "settings", "equipment"]),
+      proofCoachItem("operated a company-owned service van or truck on assigned routes", "work vehicle, service van, company truck, fuel card, route vehicle, vehicle inspections, stocking parts, or reporting vehicle maintenance", "Operated assigned work vehicle safely and reported vehicle or equipment concerns to supervisors.", "Company vehicle experience, unless you actually drove or maintained a work vehicle.", "Work experience bullet", "Medium", ["company vehicle", "work vehicle", "service van", "company truck", "fuel card", "fleet"])
+    ]
+  },
+  security_installation_technician: {
+    note: "This is installation work. Do not use guard, patrol, or officer wording unless the job asks for security-officer duties. Focus on panels, sensors, cameras, wiring, hand tools, customer walkthroughs, and testing devices.",
+    items: [
+      proofCoachItem("installed alarm panels, cameras, sensors, or access-control devices", "hands-on install of cameras, alarms, sensors, control panels, badge readers, door hardware, wiring, or low-voltage equipment", "Installed and tested low-voltage devices such as cameras, sensors, panels, or access-control equipment.", "Security Officer, patrol, or surveillance monitoring, unless those were separate duties.", "Work experience bullet", "High", ["alarm", "camera", "sensor", "control panel", "access control", "low voltage", "install"]),
+      proofCoachItem("walked customers through installed systems", "explained system operation, trained users, reviewed completed work, answered setup questions, or confirmed the customer could use the device", "Explained completed installation steps and basic system use to customers before leaving the job site.", "Security consulting, unless you actually advised on security design or risk.", "Work experience bullet", "Medium", ["customer education", "walkthrough", "explained", "trained", "customer"]),
+      proofCoachItem("used hand tools for mounting, wiring, or device setup", "drills, screwdrivers, cutters, wire strippers, testers, ladders, fasteners, mounting brackets, or basic electrical tools", "Used hand tools to mount, wire, secure, or test installed devices.", "Licensed electrical work, unless you performed it under the proper license/supervision.", "Skills or work experience bullet", "Medium", ["hand tools", "drill", "wire", "wiring", "mount", "tester"])
+    ]
+  },
+  paid_survey_focus_group: {
+    note: "This looks like a paid research task, not a stable job. Do not build a resume around it. Verify the company, pay method, time commitment, and whether it asks for money or banking details before you continue.",
+    items: [
+      proofCoachItem("confirmed this is paid research, not data entry employment", "posting clearly says focus group, product testing, survey panel, research participation, feedback session, or one-time study", "Paid research participant for survey, focus group, or product-testing opportunities.", "Data Entry Clerk, unless the role has actual data-entry duties, schedule, supervisor, and payroll.", "Do not place on resume unless it is real paid work worth listing", "High", ["focus group", "survey", "product testing", "research", "feedback"]),
+      proofCoachItem("verified payment terms before sharing personal information", "clear payment amount, payment method, no upfront fee, no fake check, no gift-card request, and no bank login request", "Verified pay structure and participation requirements before accepting research tasks.", "Guaranteed income or full-time remote job, unless the post states real employment terms.", "Personal checklist, not resume", "High", ["gift card", "payment", "earn", "bank", "fee"])
+    ]
+  },
+  certified_classroom_teacher: {
+    note: "Do not call yourself a certified teacher unless the certificate is active or you are officially in the certification path. Training, tutoring, coaching, and childcare can help, but they are not the same as state certification.",
+    items: [
+      proofCoachItem("held state teaching certification or official alternative-certification eligibility", "active teaching certificate, educator license, district-approved alternative certification pathway, or official program acceptance", "Bachelor's degree holder pursuing the approved alternative teaching certification pathway.", "Certified teacher, unless the certification is active or officially in progress.", "Education / Certifications section", "High", ["teaching certification", "teacher license", "educator certificate", "alternative certification"]),
+      proofCoachItem("planned lessons or instructional activities for students", "lesson plans, tutoring plans, classroom activities, training sessions, youth coaching plans, or curriculum support", "Planned and led instructional activities that helped students understand assigned material.", "Developed curriculum, unless you actually built curriculum plans.", "Work experience bullet", "Medium", ["lesson", "instruction", "tutoring", "training", "curriculum"]),
+      proofCoachItem("managed student behavior in a classroom or youth setting", "classroom rules, redirection, supervision, youth program groups, camp groups, coaching groups, or student behavior notes", "Supported behavior expectations by redirecting students and maintaining a focused learning setting.", "Classroom management expert, unless you had direct responsibility for a class/group.", "Work experience bullet", "Medium", ["behavior", "classroom", "students", "supervised", "youth"])
+    ]
+  },
+  early_childhood_teacher: {
+    note: "Do not turn babysitting or youth work into preschool-teacher claims unless the duties match. Use real proof: age group, parent updates, activities, classroom routines, behavior redirection, meals, nap time, diapering/toileting, or milestone notes.",
+    items: [
+      proofCoachItem("planned age-appropriate activities for young children", "daycare activities, preschool lessons, crafts, story time, play-based learning, tutoring young children, or child development activities", "Planned age-appropriate activities that supported early learning, play, and classroom routines.", "Montessori curriculum, unless you used that framework.", "Work experience bullet", "Medium", ["daycare", "preschool", "children", "arts and crafts", "storytelling", "play"]),
+      proofCoachItem("communicated child progress or concerns to parents/guardians", "parent updates, pickup/dropoff notes, daily sheets, milestone notes, behavior updates, or family communication", "Shared child updates, daily progress, and concerns with parents or guardians according to classroom expectations.", "Early-intervention reporting, unless you worked in that program.", "Work experience bullet", "Medium", ["parent", "guardian", "milestone", "daily sheet", "progress"]),
+      proofCoachItem("managed classroom routines, transitions, or behavior redirection", "arrival, meals, nap time, restroom routines, line-up transitions, centers, behavior redirection, or group supervision", "Managed classroom routines and transitions while supporting positive behavior.", "Lead teacher, unless you were responsible for the classroom.", "Work experience bullet", "Medium", ["routine", "transition", "behavior", "supervise", "classroom"])
+    ]
+  },
+  sql_server_dba: {
+    note: "A basic IT or school SQL resume is not enough for SQL DBA claims. Do not write backup/recovery, performance tuning, production database administration, or SQL Server DBA unless you can explain the database environment you supported.",
+    items: [
+      proofCoachItem("administered SQL Server databases in a production or business environment", "SQL Server instances, user permissions, jobs, maintenance plans, database monitoring, schema changes, or admin duties on live systems", "Administered SQL Server databases by supporting access, maintenance, monitoring, and operational reliability.", "SQL Server DBA, unless you actually administered databases.", "Work experience bullet", "High", ["sql server", "dba", "database administrator", "maintenance plan"]),
+      proofCoachItem("performed backup, recovery, disaster recovery, or restore testing", "backup jobs, restore tests, recovery plans, DR documentation, RPO/RTO work, or incident recovery steps", "Supported SQL Server backup, restore, and recovery procedures to protect production data.", "Disaster recovery expert, unless you owned or tested DR plans.", "Work experience bullet", "High", ["backup", "restore", "recovery", "disaster recovery", "dr"]),
+      proofCoachItem("tuned queries, indexes, stored procedures, or database performance", "execution plans, index maintenance, slow-query fixes, stored procedure tuning, T-SQL optimization, or production performance monitoring", "Improved database performance by reviewing queries, indexes, or stored procedures and documenting changes.", "Performance tuning, unless you actually tuned database performance.", "Work experience bullet", "High", ["performance", "tuning", "index", "stored procedure", "t-sql"])
+    ]
+  },
+  cleared_python_software_engineer: {
+    note: "This is not a regular Python job. Active TS/SCI with Polygraph is a hard gate. Do not claim cleared mission software, backend services, ActiveMQ, NoSQL, elastic databases, or Tier 3 support unless real.",
+    items: [
+      proofCoachItem("held active TS/SCI with Polygraph", "current active clearance and polygraph status that the employer can verify", "Active TS/SCI with Polygraph.", "Clearance, TS/SCI, or Polygraph, unless active and real.", "Clearance section", "High", ["ts/sci", "ts sci", "polygraph", "clearance"]),
+      proofCoachItem("developed backend services in Python", "Python services, APIs, data-processing jobs, backend modules, Linux services, deployment work, or production code repositories", "Developed Python backend services that processed data and integrated with operational systems.", "Python software engineer, unless you wrote software beyond scripts/coursework.", "Work experience or projects", "High", ["python", "backend", "api", "service", "linux"]),
+      proofCoachItem("supported CI/CD, Linux, testing, and Tier 3 operational issues", "CI/CD pipelines, Linux development, test cases, validation results, JIRA/Confluence, deployment notes, or production support tickets", "Validated software changes through test cases, Linux troubleshooting, deployment support, and Tier 3 issue resolution.", "Tier 3 support, unless you handled escalated production issues.", "Work experience bullet", "High", ["ci/cd", "linux", "test case", "jira", "confluence", "tier 3"])
+    ]
+  },
+  dotnet_web_developer: {
+    note: "This is software development, not IT support. Do not turn computer troubleshooting into C#, ASP.NET, MVC, Entity Framework, or API development unless you have code/projects/work to prove it.",
+    items: [
+      proofCoachItem("built applications with C#, ASP.NET, MVC, Razor, or .NET Core", "work projects, GitHub repos, shipped features, internal apps, class projects with code samples, or maintained .NET applications", "Built and maintained C#/.NET web application features using ASP.NET, MVC, Razor, or related frameworks.", "C#/.NET developer, unless you wrote and maintained code.", "Work experience or projects", "High", ["c#", "asp.net", "mvc", "razor", ".net"]),
+      proofCoachItem("used Entity Framework, LINQ, SQL, or Web APIs", "database-backed features, API endpoints, LINQ queries, controllers, models, migrations, or SQL integration", "Developed database-backed web features using Entity Framework, LINQ, SQL, or Web APIs.", "Full-stack developer, unless you handled both application and data/API work.", "Work experience or projects", "High", ["entity framework", "linq", "web api", "sql", "controller"]),
+      proofCoachItem("used source control, unit testing, bug fixes, or SDLC workflows", "Git commits, pull requests, bug tickets, unit tests, QA handoffs, code reviews, or backlog items", "Resolved bugs and delivered application changes through source control, testing, and SDLC workflows.", "Production software experience, unless the code was used beyond practice.", "Work experience or projects", "Medium", ["git", "source control", "unit test", "bug", "sdlc"])
+    ]
+  },
+  qa_automation_developer: {
+    note: "This is QA/testing plus sometimes coding. Do not claim QA automation, test plans, defect tracking, or requirements validation unless you wrote or ran tests and tracked results.",
+    items: [
+      proofCoachItem("wrote or executed test plans, test cases, or test scripts", "test plans, test cases, acceptance criteria, regression tests, QA checklists, manual test scripts, or automated test scripts", "Created and executed test cases to validate software requirements and document results.", "QA automation engineer, unless automation tools or scripts were used.", "Work experience or projects", "High", ["test plan", "test case", "test script", "qa", "regression"]),
+      proofCoachItem("tracked defects and verified fixes", "bug tickets, defect reports, screenshots, reproduction steps, retesting notes, acceptance signoff, or QA status updates", "Tracked defects with reproduction steps and verified fixes before release.", "Defect manager, unless you owned defect workflow.", "Work experience bullet", "Medium", ["defect", "bug", "jira", "retest", "verify"]),
+      proofCoachItem("built or maintained automated tests", "Selenium, Cypress, Playwright, unit tests, integration tests, test frameworks, CI test jobs, or automation scripts", "Maintained automated tests that checked application behavior and reduced manual retesting.", "Automation developer, unless you built or maintained test automation.", "Work experience or projects", "High", ["automated testing", "selenium", "cypress", "playwright", "automation"])
+    ]
+  },
+  cybersecurity_grc_analyst: {
+    note: "This is governance, risk, compliance, and control documentation. Do not turn basic cybersecurity interest into NIST, SSP, ATO, FIPS, CISSP, or control-assessment claims.",
+    items: [
+      proofCoachItem("mapped systems or controls to NIST, FIPS, SSP, ATO, or security requirements", "control matrices, SSP sections, NIST 800-53 controls, FIPS 199 categorization, ATO packages, audit evidence, or compliance documents", "Mapped system controls and compliance evidence to NIST, FIPS, SSP, or authorization requirements.", "NIST 800-53 or ATO experience, unless you used those frameworks at work.", "Work experience bullet", "High", ["nist", "800-53", "fips", "ssp", "ato"]),
+      proofCoachItem("supported risk assessment, control testing, or compliance documentation", "risk register, control test results, deviation forms, POA&M notes, audit responses, DR/COOP documents, or regulated environment reports", "Supported risk assessments and control documentation by collecting evidence, tracking findings, and updating compliance records.", "Cybersecurity GRC analyst, unless you performed governance/risk/compliance work.", "Work experience bullet", "High", ["risk assessment", "control", "compliance", "poa&m", "audit"]),
+      proofCoachItem("held CISSP or worked in regulated/federal environments", "active CISSP, federal contractor work, DOE/DOD site work, facility access, clearance process, or regulated compliance environment", "Supported cybersecurity compliance activities in regulated or federal environments.", "CISSP, clearance, or federal compliance unless real and verifiable.", "Certifications or work experience", "High", ["cissp", "clearance", "doe", "dod", "regulated"])
+    ]
+  },
+  industrial_automation_scada: {
+    note: "This is industrial automation software. Do not claim Wonderware, SCADA, HMI, advanced T-SQL, VB.NET, or plant-system support unless you worked with those systems.",
+    items: [
+      proofCoachItem("developed or supported Wonderware, SCADA, HMI, or industrial automation systems", "Wonderware/InTouch, AVEVA, SCADA screens, HMI tags, PLC/plant data integration, historian data, alarms, or production dashboards", "Developed and supported SCADA/HMI applications used in industrial automation environments.", "SCADA developer, unless you worked with industrial control software.", "Work experience or projects", "High", ["wonderware", "scada", "hmi", "aveva", "industrial automation"]),
+      proofCoachItem("used advanced T-SQL, VB.NET, ADO.NET, ASP.NET, or plant-data integrations", "stored procedures, industrial database queries, VB.NET apps, ADO.NET connections, ASP.NET tools, or data links between plant systems", "Built software and data integrations using T-SQL, .NET, and industrial system data.", "Advanced T-SQL, unless you wrote complex production queries.", "Work experience or projects", "High", ["t-sql", "vb.net", "ado.net", "asp.net", "database"]),
+      proofCoachItem("owned work from concept through post-implementation support", "requirements, design notes, testing, commissioning, go-live support, training, issue fixes, or post-implementation tickets", "Supported automation software from requirements through testing, implementation, and post-release support.", "Project ownership, unless you owned that lifecycle.", "Work experience bullet", "Medium", ["implementation", "requirements", "testing", "support", "project"])
+    ]
+  },
+  commercial_kitchen_equipment_tech: {
+    note: "This is specialized food-service equipment repair. Do not claim commercial cooking equipment, warranty repair, EPA Universal, manufacturer support, or on-call repair unless true.",
+    items: [
+      proofCoachItem("diagnosed or repaired commercial kitchen or food-service equipment", "ovens, fryers, grills, warmers, refrigeration, dish machines, electrical/mechanical faults, restaurant equipment, or food-service equipment repair", "Diagnosed and repaired commercial food-service equipment while documenting parts and service steps.", "Commercial cooking equipment technician, unless you worked on that equipment.", "Work experience bullet", "High", ["commercial kitchen", "food service equipment", "fryer", "oven", "refrigeration"]),
+      proofCoachItem("communicated with manufacturers, parts suppliers, or warranty teams", "warranty claims, manufacturer tech support, parts ordering, service authorizations, return parts, or repair documentation", "Coordinated parts, warranty, and manufacturer communication to complete equipment repairs.", "Warranty repair specialist, unless you handled warranty workflow.", "Work experience bullet", "Medium", ["warranty", "manufacturer", "parts", "service authorization"]),
+      proofCoachItem("held EPA Universal or handled refrigerant-related work", "active EPA Universal certification, refrigerant recovery, refrigeration service, HVAC/R training, or certification card", "EPA Universal Certified for refrigerant-related service work.", "EPA Universal, unless certified.", "Certifications section", "High", ["epa universal", "refrigerant", "hvac", "refrigeration"])
+    ]
+  },
+  auto_body_collision_tech: {
+    note: "This is collision/body repair, not regular mechanic work. Do not claim dent repair, panel replacement, paint prep, body filler, I-CAR, or ASE unless real.",
+    items: [
+      proofCoachItem("disassembled vehicles, repaired panels, dents, or body damage", "vehicle teardown, panel removal, dent repair, body filler, bumper/fender/door repair, structural checks, or collision repair tasks", "Disassembled vehicle components and supported panel, dent, or body-damage repairs.", "Auto body technician, unless collision/body repair was part of your work.", "Work experience bullet", "High", ["collision", "auto body", "panel", "dent", "body filler", "disassembly"]),
+      proofCoachItem("sanded, ground, prepped, or transferred work to paint department", "sanding, grinding, masking, priming, surface prep, paint handoff, refinish prep, or booth prep", "Prepared repaired surfaces through sanding, grinding, masking, or paint-department handoff steps.", "Painter, unless you performed paint/refinish work.", "Work experience bullet", "Medium", ["sanding", "grinding", "paint", "prep", "masking"]),
+      proofCoachItem("held I-CAR, ASE, or collision-repair training", "I-CAR classes, ASE certifications, vocational collision training, shop training, or manufacturer repair procedures", "Completed collision-repair training and followed repair procedures during assigned shop work.", "I-CAR or ASE certified, unless current and accurate.", "Certifications section", "High", ["i-car", "ase", "certification", "collision training"])
+    ]
+  },
+  cdl_tanker_hazmat_driver: {
+    note: "This is not entry-level CDL. Do not claim tanker, Hazmat, manual transmission, no restrictions, or continuous commercial driving unless those are on the license and work history.",
+    items: [
+      proofCoachItem("held Class-A CDL with Tanker and Hazmat endorsements", "active Class-A CDL plus Tanker and Hazmat endorsements on the license", "Class-A CDL holder with active Tanker and Hazmat endorsements.", "Tanker/Hazmat driver, unless both endorsements are active.", "Certifications section", "High", ["cdl-a", "class a", "tanker", "hazmat"]),
+      proofCoachItem("drove manual or 10-speed commercial equipment", "manual tractor, 10-speed training, road test, unrestricted CDL, or verifiable manual transmission driving", "Operated manual/10-speed commercial equipment where required.", "No automatic restriction or 10-speed ability, unless true.", "Certifications or work experience", "High", ["10-speed", "manual", "no restrictions", "unrestricted"]),
+      proofCoachItem("completed tanker/Hazmat loads, pre-trip checks, and DOT paperwork", "tanker loading/unloading, placards, bills of lading, hazmat paperwork, pre-trip inspections, trip logs, or DOT compliance records", "Completed required inspections and paperwork for specialized CDL loads while following DOT procedures.", "Tanker or Hazmat load experience, unless you hauled those loads.", "Work experience bullet", "High", ["load", "pre-trip", "dot", "placard", "bill of lading"])
+    ]
+  },
+  cdl_local_dedicated_driver: {
+    note: "This is CDL tractor-trailer work. Do not use delivery-driver proof as tractor-trailer experience unless you drove CDL equipment. Separate license, school, endorsements, ELD, drop-and-hook, and verifiable months.",
+    items: [
+      proofCoachItem("held Class-A CDL and completed tractor-trailer training or driving", "active CDL-A, CDL school, tractor-trailer road training, backing practice, range work, or verifiable CDL driving", "Class-A CDL holder trained in tractor-trailer inspections, backing, and safe vehicle operation.", "6 months tractor-trailer experience, unless verifiable.", "Certifications and work experience", "High", ["cdl-a", "class a", "tractor-trailer", "backing"]),
+      proofCoachItem("used ELD, Qualcomm, route paperwork, or dispatch communication", "ELD logs, Qualcomm messages, trip sheets, dispatch calls, BOLs, delivery paperwork, or check-in/out notes", "Updated ELD, dispatch, or trip paperwork during assigned driving work.", "ELD/Qualcomm experience, unless you used those systems.", "Work experience bullet", "Medium", ["eld", "qualcomm", "dispatch", "bol", "trip"]),
+      proofCoachItem("handled dry van, drop-and-hook, or local dedicated routes", "dry van trailers, drop-and-hook moves, local routes, dedicated customer lanes, trailer numbers, dock check-ins, or yard moves", "Completed local or dedicated driving tasks involving trailer checks, route timing, and customer requirements.", "Dry van/drop-and-hook experience, unless real.", "Work experience bullet", "Medium", ["dry van", "drop and hook", "local", "dedicated", "trailer"])
+    ]
+  },
+  railcar_switchman: {
+    note: "Rail switching has its own language. Do not claim coupling, air hoses, hand brakes, Trackmobile, or radio/hand signals unless you performed rail-yard work.",
+    items: [
+      proofCoachItem("coupled/uncoupled railcars or connected air hoses", "railcar coupling, uncoupling, knuckles, air hoses, brake lines, blue flag rules, or railcar securement tasks", "Coupled and uncoupled railcars and connected air hoses according to yard procedures.", "Railcar switchman, unless you performed rail switching duties.", "Work experience bullet", "High", ["coupling", "uncoupling", "air hoses", "railcar"]),
+      proofCoachItem("set hand brakes, threw switches, or used rail signals", "hand brakes, switches, derails, hand signals, radio signals, spotter duties, or track movement instructions", "Set hand brakes, handled switches, or used radio/hand signals during rail-yard operations.", "Trackmobile operator, unless you operated one.", "Work experience bullet", "High", ["hand brakes", "throw switches", "radio signals", "hand signals", "trackmobile"]),
+      proofCoachItem("worked safely around rail equipment, PPE, and outdoor yard conditions", "rail yard, PPE, walking ballast, outdoor shifts, blue flag/lockout, radio communication, or equipment spacing rules", "Worked around rail equipment outdoors while following PPE, communication, and yard-safety procedures.", "Rail safety experience, unless you worked around rail equipment.", "Work experience bullet", "Medium", ["rail yard", "ppe", "outdoor", "yard", "safety"])
+    ]
+  },
+  industrial_shipping_loader: {
+    note: "This is physical shipping/loading operations. Do not claim railcar loading, flatbed loading, fork truck, BOL, or nonconforming-goods processing unless those duties are real.",
+    items: [
+      proofCoachItem("loaded flatbeds, vans, trailers, railcars, or industrial shipments", "flatbed loading, van loading, trailer loading, railcar loading, dunnage, straps, staged loads, or load securement", "Loaded industrial shipments onto trailers, vans, flatbeds, or railcars while checking counts and labels.", "Railcar or flatbed loading, unless you actually loaded that equipment.", "Work experience bullet", "High", ["flatbed", "van loading", "railcar loading", "trailer", "load"]),
+      proofCoachItem("used fork truck, forklift, or material-moving equipment", "fork truck, forklift, pallet jack, tugger, clamp truck, load cart, or powered industrial truck", "Operated material-moving equipment to stage, move, or load shipments.", "Forklift operator, unless you were trained/authorized to operate it.", "Skills or work experience", "High", ["fork truck", "forklift", "pallet jack", "material"]),
+      proofCoachItem("completed BOLs, inbound sheets, counts, labels, or shipping issue records", "bill of lading, inbound sheet, count sheet, label verification, nonconforming-goods record, rework tag, or shipment discrepancy note", "Verified counts, labels, and shipping documents before releasing or staging shipments.", "Shipping clerk, unless you handled shipping paperwork as a duty.", "Work experience bullet", "Medium", ["bill of lading", "bol", "inbound sheet", "count", "label", "nonconforming"])
+    ]
+  }
+};
+
+const PROOF_COACH_BY_FAMILY = {
+  manufacturing: {
+    note: "Use exact machine, line, material, shift, inspection, or production duty. Do not write broad manufacturing claims without the actual equipment or task.",
+    items: [
+      proofCoachItem("operated assigned production machines or monitored production equipment", "specific machine names, production line, press, twister, CNC, conveyor, scanner station, control panel, or equipment-monitoring duty", "Operated and monitored assigned production equipment while following quality and safety steps.", "Machine operator, unless you actually operated or monitored production equipment.", "Work experience bullet", "Medium", ["machine", "equipment", "operator", "production", "press", "twister"]),
+      proofCoachItem("completed quality checks on parts, product, labels, or defects", "inspections, defect checks, measurements, visual checks, label checks, counts, reject handling, or quality forms", "Checked product for defects, counts, labels, or quality concerns before moving work forward.", "Quality inspector, unless inspection was a main duty.", "Work experience bullet", "Medium", ["quality", "inspection", "defect", "checked", "measure"]),
+      proofCoachItem("handled materials, pallets, bearings, parts, boxes, or production supplies", "actual materials moved, loaded, scanned, staged, wrapped, counted, or supplied to a line", "Moved and staged production materials so assigned equipment or lines stayed supplied.", "Forklift operator, unless forklift use is real and allowed by your training.", "Work experience bullet", "Low", ["material", "pallet", "parts", "bearing", "loaded", "wrapped"])
+    ]
+  },
+  warehouse: {
+    note: "Use actual warehouse actions: loaded, unloaded, picked, packed, scanned, staged, wrapped, counted, shipped, received, or inventoried.",
+    items: [
+      proofCoachItem("loaded or unloaded trucks, pallets, trailers, cartons, or containers", "loading docks, trailers, pallet loads, hand loading, pallet jack, forklift, or staged outbound/inbound freight", "Loaded and unloaded freight while keeping counts, staging, and assigned areas organized.", "Forklift operator, unless you actually operated a forklift.", "Work experience bullet", "Medium", ["loaded", "unloaded", "truck", "trailer", "pallet", "dock"]),
+      proofCoachItem("picked, packed, staged, wrapped, or verified orders", "pick list, pack station, staging lane, pallet wrap, order labels, shipment verification, or outbound order checks", "Picked, packed, staged, wrapped, or verified orders before shipment or stocking.", "Inventory control, unless you owned inventory accuracy duties.", "Work experience bullet", "Medium", ["picked", "packed", "staged", "wrapped", "order"]),
+      proofCoachItem("used RF scanner, scan gun, inventory system, or pick list", "scanner, barcode gun, WMS, pick ticket, inventory count, stock locations, or order selection", "Used scanning or inventory tools to pick, verify, stage, or update product movement.", "WMS experience, unless you used that system.", "Skills or work experience bullet", "Medium", ["scanner", "rf", "inventory", "pick", "wms", "barcode"])
+    ]
+  },
+  healthcare: {
+    note: "Healthcare support claims need exact patient/resident tasks, certification, charting system, care setting, and privacy/safety procedures. Do not write CNA, phlebotomy, vitals, ADLs, or HIPAA unless real.",
+    items: [
+      proofCoachItem("provided ADL, mobility, transfer, feeding, bathing, or toileting assistance", "resident/patient care tasks such as bathing, dressing, feeding, toileting, transfers, ambulation, wheelchair help, or bed-to-chair support", "Assisted patients or residents with ADLs, mobility, and daily care tasks according to care instructions.", "CNA or caregiver, unless those duties were real and within your role.", "Work experience bullet", "High", ["adl", "bathing", "feeding", "transfer", "mobility", "resident"]),
+      proofCoachItem("checked vital signs, drew blood, collected specimens, or supported clinical tasks", "blood pressure, pulse, temperature, oxygen, venipuncture, specimen collection, EKG, lab labels, or clinical checklists", "Collected clinical information such as vital signs or specimens according to assigned procedures.", "Phlebotomist, EKG tech, or MA, unless certified/trained and performed those tasks.", "Work experience or certifications", "High", ["vital", "blood pressure", "specimen", "phlebotomy", "ekg"]),
+      proofCoachItem("documented care while following HIPAA, infection control, and PPE rules", "charting, care notes, EHR entries, shift reports, HIPAA training, gloves, masks, isolation rooms, hand hygiene, or infection-control steps", "Documented care details while following HIPAA, PPE, and infection-control procedures.", "HIPAA or charting experience, unless you used patient information systems or received training.", "Work experience or certifications", "Medium", ["hipaa", "charting", "documentation", "infection", "ppe"])
+    ]
+  },
+  healthcare_admin: {
+    note: "Medical office claims need exact front-desk, billing, coding, insurance, EHR/EMR, records, claims, or HIPAA proof. Do not turn regular office work into medical billing or coding.",
+    items: [
+      proofCoachItem("registered patients, scheduled appointments, or verified insurance", "patient check-in, demographics, insurance cards, eligibility checks, referrals, authorizations, appointment scheduling, or front-desk medical workflow", "Registered patients, scheduled appointments, and verified insurance or demographic information accurately.", "Medical front desk, unless the work was in a healthcare office or patient system.", "Work experience bullet", "Medium", ["patient", "insurance", "appointment", "registration", "referral"]),
+      proofCoachItem("entered or maintained EHR/EMR records, medical documents, or patient files", "EHR/EMR systems, scanned documents, medical records, chart updates, lab paperwork, provider notes, or patient-file maintenance", "Updated EHR/EMR records and medical documents while protecting patient privacy.", "EHR/EMR experience, unless you used those systems.", "Skills or work experience bullet", "High", ["ehr", "emr", "medical records", "chart", "patient files"]),
+      proofCoachItem("worked with claims, billing, coding, CPT, ICD, or payment posting", "claim forms, denials, billing queues, insurance follow-up, CPT/ICD codes, payment posting, or coding review", "Supported medical billing or claims tasks by reviewing codes, insurance details, or payment information.", "Medical coder/biller, unless you actually handled codes, claims, or billing.", "Work experience or certifications", "High", ["billing", "claims", "coding", "cpt", "icd"])
+    ]
+  },
+  maintenance: {
+    note: "Use exact repair areas: work orders, plumbing leaks, outlets, switches, HVAC checks, appliance repairs, turns, tools, or preventive maintenance.",
+    items: [
+      proofCoachItem("completed work orders, service requests, turns, or repair tickets", "maintenance tickets, apartment turns, repair requests, service calls, tenant requests, job notes, or completed-task logs", "Completed assigned work orders and documented repairs, materials, or follow-up needs.", "Maintenance technician, unless repair duties were a real part of your job.", "Work experience bullet", "Medium", ["work order", "service request", "repair", "maintenance", "ticket"]),
+      proofCoachItem("handled plumbing, electrical, HVAC, appliance, carpentry, or fixture repairs", "leaks, toilets, sinks, outlets, switches, fixtures, ceiling fans, HVAC filters, appliances, doors, trim, locks, or drywall patches", "Completed basic repairs involving plumbing, electrical, HVAC, appliances, carpentry, or fixtures within assigned duties.", "Licensed plumber/electrician/HVAC tech, unless licensed or supervised for that work.", "Work experience bullet", "High", ["plumbing", "electrical", "hvac", "appliance", "fixture", "door"]),
+      proofCoachItem("used hand or power tools for repairs, installs, or adjustments", "drill, saw, meter, wrench, pliers, driver, ladder, fasteners, fixtures, doors, trim, outlets, switches, or basic repair tools", "Used hand and power tools to complete assigned repair, installation, or maintenance tasks.", "Licensed trade work, unless it was licensed/supervised correctly.", "Skills or work experience bullet", "Medium", ["hand tools", "power tools", "drill", "saw", "wrench", "repair"])
+    ]
+  },
+  electrical: {
+    note: "Electrical proof must name the exact task and whether it was helper, supervised, residential, commercial, or industrial. Do not claim electrician, panels, conduit, or troubleshooting beyond what you actually did.",
+    items: [
+      proofCoachItem("installed or assisted with outlets, switches, fixtures, fans, or wiring", "residential rough-in, trim-out, outlets, switches, ceiling fans, fixtures, cable pulls, wire runs, or supervised helper tasks", "Assisted with wiring, outlets, switches, fixtures, and ceiling fans under assigned electrical procedures.", "Electrician, unless you are licensed or the role was a helper/apprentice role.", "Work experience bullet", "High", ["wiring", "outlet", "switch", "fixture", "ceiling fan"]),
+      proofCoachItem("worked with conduit, panels, breakers, meters, or electrical troubleshooting", "EMT/conduit, breaker panels, meters, circuits, continuity checks, voltage checks, troubleshooting steps, or supervised panel work", "Supported electrical troubleshooting, conduit, panel, or circuit tasks under supervision.", "Panel work or troubleshooting, unless you actually performed those tasks safely/supervised.", "Work experience bullet", "High", ["conduit", "panel", "breaker", "meter", "troubleshoot"]),
+      proofCoachItem("followed lockout/tagout, PPE, ladder, and jobsite electrical safety", "LOTO training, de-energized circuits, PPE, ladders, jobsite safety meetings, OSHA rules, or supervised safety procedures", "Followed electrical safety procedures, PPE requirements, and assigned jobsite rules during electrical work.", "Lockout/tagout, unless trained and used it.", "Skills or work experience bullet", "Medium", ["lockout", "tagout", "ppe", "osha", "ladder", "safety"])
+    ]
+  },
+  welding: {
+    note: "Welding proof must name the process, material, position, drawings, fit-up, tools, and inspection standard. Do not claim MIG, TIG, pipe, structural, or code welding unless you did it.",
+    items: [
+      proofCoachItem("performed MIG, TIG, stick, flux-core, pipe, or structural welding", "specific welding process, material type, weld position, shop/field environment, production welds, repair welds, or welding-school projects", "Performed assigned welding tasks using documented processes while following safety and quality steps.", "Welder, MIG, TIG, pipe, or structural welding unless that process is real.", "Skills and work experience", "High", ["mig", "tig", "stick", "flux", "weld", "pipe"]),
+      proofCoachItem("fit, fabricated, cut, ground, or prepared metal parts", "fit-up, measuring, tack welding, cutting, grinding, beveling, layout, clamps, jigs, or material prep", "Prepared, fit, cut, or ground metal parts to support fabrication or welding tasks.", "Fabricator, unless layout/fit-up/fabrication was part of the job.", "Work experience bullet", "Medium", ["fabrication", "fit", "grinding", "cutting", "layout", "tack"]),
+      proofCoachItem("read blueprints, drawings, weld symbols, or inspection requirements", "blueprints, drawings, shop travelers, weld symbols, WPS, measurements, gauges, visual inspection, or dimensional checks", "Used drawings, measurements, or work instructions to complete welding or fabrication tasks.", "Certified/code welder, unless certified and tested.", "Work experience or certifications", "High", ["blueprint", "drawing", "weld symbol", "wps", "inspection"])
+    ]
+  },
+  diesel: {
+    note: "Diesel mechanic proof must name the system, vehicle/equipment type, PM task, diagnostic step, and shop tool. Do not call yourself a diesel mechanic if your proof is helper/lube/inspection only.",
+    items: [
+      proofCoachItem("performed PM service, inspections, fluids, filters, tires, lights, or safety checks", "preventive maintenance, oil changes, filters, greasing, tire checks, brake checks, lights, DVIR, shop inspection forms, or fleet service", "Performed preventive maintenance and inspections on trucks, trailers, fleet vehicles, or equipment.", "Diesel mechanic, unless diagnostics/repairs were real duties.", "Work experience bullet", "Medium", ["preventive maintenance", "pm", "inspection", "oil", "filter", "fleet"]),
+      proofCoachItem("diagnosed or repaired brakes, hydraulics, electrical, engines, or trailers", "air brakes, hydraulic leaks, electrical faults, engine issues, trailer repairs, ABS, suspension, diagnostic scanner, or shop repair orders", "Supported diagnostics and repairs on diesel, trailer, brake, hydraulic, or electrical systems.", "Diesel diagnostics, unless you actually diagnosed faults.", "Work experience bullet", "High", ["brakes", "hydraulic", "engine", "trailer", "diagnostic", "abs"]),
+      proofCoachItem("used shop tools, scan tools, lifts, jacks, torque tools, or service manuals", "hand tools, impact tools, torque wrench, diagnostic scanner, lifts, jacks, service manuals, parts lookup, or repair procedures", "Used shop tools and service procedures to complete assigned inspection, service, or repair tasks.", "ASE/master technician, unless certified.", "Skills or work experience", "Medium", ["tools", "scanner", "torque", "jack", "manual", "parts"])
+    ]
+  },
+  construction: {
+    note: "Construction proof must name the trade task, material, tool, jobsite type, measurement, installation, and safety condition. Do not use one construction word to cover every trade.",
+    items: [
+      proofCoachItem("used hand/power tools for installation, demolition, carpentry, concrete, drywall, or site work", "drills, saws, grinders, nailers, hammers, levels, tape measures, pry bars, concrete tools, drywall tools, or demolition tools", "Used hand and power tools to complete assigned construction, installation, or demolition tasks.", "Skilled trade mechanic, unless you performed that trade at that level.", "Skills or work experience bullet", "Medium", ["hand tools", "power tools", "drill", "saw", "demolition", "installation"]),
+      proofCoachItem("measured, cut, installed, framed, trimmed, or assembled building materials", "doors, trim, millwork, framing, drywall, flooring, insulation, fencing, fixtures, layout marks, or material cuts", "Measured, cut, installed, or assembled building materials according to jobsite instructions.", "Carpenter, unless carpentry was a real duty.", "Work experience bullet", "Medium", ["measured", "cut", "installed", "framing", "trim", "millwork"]),
+      proofCoachItem("followed jobsite safety, PPE, ladder, lift, cleanup, or material-handling rules", "PPE, ladders, scaffolds, lifts, cleanup, debris removal, heavy materials, traffic control, safety meetings, or OSHA rules", "Followed jobsite safety, PPE, cleanup, and material-handling procedures during assigned work.", "OSHA 10/30, unless certified.", "Work experience or certifications", "Medium", ["ppe", "ladder", "scaffold", "cleanup", "osha", "safety"])
+    ]
+  },
+  customer_service: {
+    note: "Customer-service proof must say who you helped, what system or counter/phone channel you used, what problem you solved, and what record or transaction you updated. Avoid plain 'good communication'.",
+    items: [
+      proofCoachItem("handled customer questions, complaints, returns, accounts, or service issues", "front counter, phone queue, chat/email, complaints, returns, account lookups, service delays, order problems, or customer follow-up", "Resolved customer questions, account issues, returns, or service concerns while documenting next steps.", "Call center, sales, or account manager, unless that was the setting and duty.", "Work experience bullet", "Medium", ["customer", "complaint", "return", "account", "service", "phone"]),
+      proofCoachItem("used POS, CRM, order system, account system, or service notes", "cash register, POS, CRM, account portal, order system, ticket notes, service log, payment screen, or customer profile", "Used POS, CRM, order, or account systems to update customer information and complete transactions.", "CRM experience, unless you used a CRM or account system.", "Skills or work experience", "Medium", ["pos", "crm", "account", "order", "transaction", "system"]),
+      proofCoachItem("recommended products, services, upgrades, appointments, or next steps", "upselling, product suggestions, appointment scheduling, service options, warranty explanation, membership offers, or referral to the right department", "Recommended products, services, appointments, or next steps based on the customer's stated need.", "Sales representative, unless selling was part of the job.", "Work experience bullet", "Medium", ["sales", "upsell", "recommend", "appointment", "product"])
+    ]
+  },
+  office: {
+    note: "Office proof must name the document, system, record, schedule, phone/email task, or spreadsheet. Do not turn basic computer use into administrative experience.",
+    items: [
+      proofCoachItem("entered, updated, scanned, filed, or audited records", "data entry, forms, spreadsheets, scanned documents, filing systems, record audits, mail logs, or database updates", "Entered, updated, scanned, filed, or audited records with attention to accuracy.", "Data entry clerk, unless data entry was a regular duty.", "Work experience bullet", "Medium", ["data entry", "records", "file", "scan", "spreadsheet"]),
+      proofCoachItem("scheduled appointments, calendars, meetings, routes, or follow-ups", "calendar updates, appointment scheduling, interview times, service windows, route times, reminders, or confirmation calls", "Scheduled appointments, calendar updates, or follow-ups and communicated changes clearly.", "Scheduler/coordinator, unless scheduling was part of your job.", "Work experience bullet", "Medium", ["schedule", "calendar", "appointment", "follow up", "meeting"]),
+      proofCoachItem("answered phones, handled emails, routed messages, or prepared documents", "multi-line phones, inboxes, email replies, document templates, memos, reports, labels, PDFs, or office correspondence", "Answered calls, handled emails, routed messages, and prepared documents for office operations.", "Administrative assistant, unless these were assigned office duties.", "Work experience bullet", "Medium", ["phone", "email", "document", "message", "office"])
+    ]
+  },
+  driving: {
+    note: "Separate license proof from experience proof. A CDL is a credential; route driving, pre-trip inspections, endorsements, manual transmission, tanker, Hazmat, and verifiable tractor-trailer time are separate claims.",
+    items: [
+      proofCoachItem("completed pre-trip or post-trip inspections", "CDL school inspection practice, DOT inspection forms, vehicle walkarounds, DVIR, tire/brake/light checks, or equipment condition notes", "Completed pre-trip and post-trip inspection steps to check vehicle condition before or after routes.", "DOT driver experience, unless you drove under DOT rules.", "Work experience or CDL training section", "Medium", ["pre-trip", "pretrip", "post-trip", "inspection", "dvir"]),
+      proofCoachItem("held CDL-A, TWIC, Tanker, Hazmat, or DOT medical card", "license/endorsement card, permit, TWIC card, DOT medical card, or completed CDL training", "CDL-A holder with TWIC card and training in vehicle inspection and safe operation.", "Tanker, Hazmat, manual, or 1 year experience unless each one is true.", "Certifications section", "High", ["cdl", "twic", "hazmat", "tanker", "dot medical", "medical card"]),
+      proofCoachItem("communicated with dispatch or updated route paperwork", "dispatch calls, delivery app, BOL, trip sheet, route manifest, delivery log, arrival/departure note, or customer signature", "Updated route paperwork, trip notes, or dispatch information during assigned driving work.", "Commercial driving route experience, unless it was work driving.", "Work experience bullet", "Medium", ["dispatch", "route", "bol", "manifest", "delivery", "trip"])
+    ]
+  },
+  security: {
+    note: "Security-officer proof must be patrols, access control, visitor screening, incident reports, emergency response, cameras, posts, or license/training. Do not use alarm-installation or IT security wording for guard work.",
+    items: [
+      proofCoachItem("performed patrols, post checks, access control, or visitor screening", "walking patrols, vehicle patrols, gatehouse duty, badge checks, visitor logs, entry control, post orders, or perimeter checks", "Performed patrols, access control, visitor screening, and post checks according to site procedures.", "Law enforcement, unless you were sworn/certified.", "Work experience bullet", "Medium", ["patrol", "access control", "visitor", "badge", "gate", "post"]),
+      proofCoachItem("wrote incident reports, logs, shift notes, or emergency notifications", "incident report, DAR, activity log, shift report, unusual activity notes, emergency calls, supervisor notifications, or trespass reports", "Documented incidents, observations, and unusual activity through clear reports and shift logs.", "Investigator, unless you performed investigations.", "Work experience bullet", "Medium", ["incident", "report", "log", "dar", "shift"]),
+      proofCoachItem("monitored cameras, alarms, safety issues, or emergency situations", "CCTV screens, radio calls, alarm panels, safety concerns, emergency response, de-escalation, fire watch, or medical/security calls", "Monitored cameras, alarms, and site conditions and responded to concerns using site procedures.", "Cybersecurity or alarm technician, unless that was the job.", "Work experience bullet", "Medium", ["camera", "cctv", "alarm", "emergency", "radio", "de-escalation"])
+    ]
+  },
+  cleaning: {
+    note: "Cleaning proof must name the area, chemical/tool, schedule, sanitation standard, floor task, waste task, or facility type. Avoid plain 'cleaning' with no details.",
+    items: [
+      proofCoachItem("cleaned rooms, restrooms, offices, production areas, patient areas, or public spaces", "assigned areas such as restrooms, offices, lobbies, hotel rooms, patient rooms, breakrooms, production floors, or common areas", "Cleaned assigned rooms, restrooms, common areas, or workspaces according to facility standards.", "Hospital EVS or hotel housekeeper, unless that was the setting.", "Work experience bullet", "Low", ["cleaned", "rooms", "restroom", "office", "public", "patient"]),
+      proofCoachItem("sanitized surfaces, handled trash, restocked supplies, or followed chemical procedures", "disinfectant, sanitizing, chemical labels, trash removal, linen removal, supply carts, restroom supplies, or SDS/safety rules", "Sanitized surfaces, removed trash, and restocked supplies while following chemical and safety procedures.", "Biohazard or hazardous waste handling, unless trained and assigned.", "Work experience bullet", "Medium", ["sanitized", "trash", "restocked", "chemical", "sds"]),
+      proofCoachItem("completed floor care such as sweeping, mopping, vacuuming, buffing, or stripping/waxing", "broom, mop, vacuum, scrubber, buffer, burnisher, wet floor signs, floor stripping, waxing, or carpet cleaning", "Completed floor-care tasks such as sweeping, mopping, vacuuming, or machine floor work.", "Floor technician, unless floor machines/stripping/waxing were real duties.", "Skills or work experience", "Medium", ["mopping", "sweeping", "vacuum", "floor", "buffer", "wax"])
+    ]
+  },
+  food_service: {
+    note: "Food-service proof must name the station, food task, equipment, ticket/order system, sanitation step, or cash/POS task. Do not claim cook or food safety certification without proof.",
+    items: [
+      proofCoachItem("prepped, cooked, assembled, plated, or served food items", "prep station, grill, fryer, oven, cold line, sandwich station, tray line, portioning, plating, or serving line", "Prepared, cooked, assembled, plated, or served food items according to assigned station procedures.", "Line cook, unless you worked a cooking station.", "Work experience bullet", "Medium", ["prep", "cook", "grill", "fryer", "served", "plated"]),
+      proofCoachItem("followed food safety, sanitation, temperature, glove, or allergy procedures", "handwashing, gloves, sanitizer buckets, temperature logs, FIFO, date labels, cross-contamination rules, allergy notes, or safe food handling training", "Followed food safety and sanitation procedures including temperature, labeling, glove, and clean-area requirements.", "ServSafe certified, unless certified.", "Skills or certifications", "High", ["food safety", "sanitation", "temperature", "fifo", "gloves", "allergy"]),
+      proofCoachItem("handled orders, POS, cash, drive-thru, dining room, or guest requests", "tickets, POS, register, drive-thru headset, order accuracy, customer requests, dining-room service, or payment handling", "Processed orders, POS transactions, or guest requests while keeping timing and accuracy in focus.", "Server/cashier, unless that was part of your duties.", "Work experience bullet", "Medium", ["order", "pos", "cash", "drive-thru", "guest", "ticket"])
+    ]
+  },
+  education: {
+    note: "Education-support proof must name the age/grade, setting, lesson/activity, supervision area, behavior support, documentation, or special-needs support. Do not claim certified teacher unless licensed.",
+    items: [
+      proofCoachItem("supported students during lessons, tutoring, classroom activities, or small groups", "teacher assistant duties, tutoring, homework help, small groups, classroom centers, training learners, coaching youth, or instructional support", "Supported students during lessons, tutoring, small groups, or classroom activities according to teacher expectations.", "Certified teacher, unless you hold or are pursuing certification.", "Work experience bullet", "Medium", ["student", "classroom", "lesson", "tutoring", "small group"]),
+      proofCoachItem("supervised students during arrival, lunch, recess, hallway, bus, or activities", "student supervision, attendance, hallway monitoring, lunchroom duty, recess, bus duty, camp groups, youth activities, or safety checks", "Supervised students during classroom, hallway, lunch, recess, bus, or activity periods.", "Classroom management lead, unless you owned behavior plans.", "Work experience bullet", "Medium", ["supervised", "lunch", "recess", "hallway", "bus", "activity"]),
+      proofCoachItem("supported behavior expectations, IEP/504 instructions, special needs, or parent/staff updates", "redirection, behavior notes, IEP/504 support, special-needs assistance, daily notes, teacher updates, parent communication, or incident documentation", "Supported student behavior expectations and documented updates for teachers, staff, or families when assigned.", "Special education teacher, unless licensed/assigned in that role.", "Work experience bullet", "High", ["behavior", "iep", "504", "special needs", "parent", "documentation"])
+    ]
+  },
+  it: {
+    note: "Do not turn personal computer knowledge into professional IT claims. Use tickets, users, devices, systems, tools, projects, labs, certifications, or exact software only when real.",
+    items: [
+      proofCoachItem("resolved user hardware, software, account, or connectivity tickets", "help desk tickets, password resets, Windows support, printer support, network checks, laptop setup, or user-facing tech support", "Resolved user support tickets involving hardware, software, account access, or connectivity issues.", "Systems administrator, cybersecurity analyst, or developer, unless those duties are real.", "Work experience or projects", "Medium", ["ticket", "help desk", "windows", "password", "hardware", "software", "network"]),
+      proofCoachItem("used a ticketing system or documented support steps", "JIRA, ServiceNow, Zendesk, Freshservice, help desk queue, ticket notes, escalation notes, or resolution notes", "Documented issue symptoms, troubleshooting steps, escalation details, and final resolution in a ticketing system.", "Tier 2/Tier 3 support, unless that was your actual support level.", "Work experience bullet", "Medium", ["ticket", "jira", "servicenow", "zendesk", "documentation", "escalation"]),
+      proofCoachItem("worked with exact tools, systems, labs, certifications, or projects", "CompTIA training, home lab, school lab, Windows admin tasks, networking lab, security tools, scripting, GitHub project, or documented technical project", "Built technical proof through labs, certifications, projects, or user-support tasks with specific tools and systems.", "Professional IT experience, unless it happened in a job or formal project.", "Projects, certifications, or skills section", "Medium", ["comptia", "lab", "project", "script", "github", "certification"])
+    ]
+  },
+  general: {
+    note: "The app could not lock onto one job family. Do not add broad keywords. Pick the detected job type or paste a clearer job post before copying resume wording.",
+    items: [
+      proofCoachItem("matched the exact job title or subtype from the posting", "the resume already names the same role, a direct prior role, license, training program, or same daily duties", "Matched resume wording to the exact job type only after confirming the same duties or training.", "A job title from the posting, unless your resume proves that role.", "Summary or work experience only after selecting a real job type", "High", ["job title", "role", "training", "license"]),
+      proofCoachItem("proved the specific tool, system, license, machine, or worksite mentioned", "named tool, software, credential, equipment, customer type, route type, machine, or regulated worksite from the posting", "Added only exact tools, systems, licenses, machines, or worksites that the resume can prove.", "Generic skills with no example behind them.", "Skills, certifications, or work experience", "Medium", ["tool", "system", "license", "machine", "equipment"])
+    ]
+  }
+};
+
+const GATE_PROOF_COACH = {
+  driver_license: proofCoachItem("valid driver's license", "current driver's license that meets the employer's requirements", "Valid driver's license with ability to drive to assigned customer or job locations.", "Clean MVR, unless the record actually meets the employer/insurance standard.", "Certifications or resume header", "High", ["driver license", "driver's license", "cdl"]),
+  mvr: proofCoachItem("acceptable driving record / MVR", "MVR that meets the employer or insurance carrier rules, not just having a license", "Eligible to operate company vehicles based on employer MVR requirements.", "Clean driving record, unless it is accurate.", "Do not place unless verified; discuss only if asked", "High", ["mvr", "clean driving", "safe driving"]),
+  cdl_a: proofCoachItem("valid Class-A CDL", "active CDL-A license, not just interest in trucking", "Valid Class-A CDL holder with CDL training in inspections and safe vehicle operation.", "CDL-A driver with experience, unless you have verifiable driving time.", "Certifications section", "High", ["cdl-a", "class a"]),
+  tanker: proofCoachItem("Tanker endorsement", "active Tanker endorsement on the license", "Class-A CDL holder with Tanker endorsement.", "Tanker endorsement, unless it is on your license.", "Certifications section", "High", ["tanker"]),
+  hazmat: proofCoachItem("Hazmat endorsement", "active Hazmat endorsement and required background approval", "Class-A CDL holder with Hazmat endorsement.", "Hazmat endorsement, unless it is active.", "Certifications section", "High", ["hazmat"]),
+  teaching_certification: proofCoachItem("state teaching certification", "active educator certificate or official alternative-certification eligibility", "Eligible for state teaching certification through the approved alternative pathway.", "Certified teacher, unless the certificate is active or officially in progress.", "Education / Certifications section", "High", ["teaching certification", "teacher license"]),
+  bachelors: proofCoachItem("bachelor's degree", "completed bachelor's degree from the school listed on the resume", "Bachelor's degree completed in [field].", "Bachelor's degree, unless the degree is completed.", "Education section", "High", ["bachelor", "bachelors", "degree"]),
+  pesticide_license: proofCoachItem("pesticide license within 90 days", "current license, prior license, or willingness to complete company-paid licensing after hire when the posting allows it", "Willing and able to complete company-paid pesticide licensing within the required 90-day period.", "Licensed pesticide applicator, unless already licensed.", "Certifications or summary", "High", ["pesticide", "pest control license"]),
+  ts_sci_poly: proofCoachItem("active TS/SCI with Polygraph", "current active clearance with polygraph", "Active TS/SCI with Polygraph.", "Clearance, TS/SCI, or Polygraph, unless active and real.", "Clearance section", "High", ["ts/sci", "polygraph", "clearance"]),
+  epa_universal: proofCoachItem("EPA Universal Certification", "active EPA Universal certification card or documented certification", "EPA Universal Certified.", "EPA Universal, unless certified.", "Certifications section", "High", ["epa universal"]),
+  rn_license: proofCoachItem("active RN license", "active RN license in the state required by the job", "Active RN license.", "Registered Nurse, unless licensed.", "Licenses section", "High", ["rn license", "registered nurse"]),
+  lpn_license: proofCoachItem("active LPN license", "active LPN license in the state required by the job", "Active LPN license.", "Licensed Practical Nurse, unless licensed.", "Licenses section", "High", ["lpn license", "licensed practical nurse"])
+};
+
+function getProofCoachRule(analysis) {
+  const subtypeId = analysis.realJobType?.id;
+  if (subtypeId && PROOF_COACH_BY_SUBTYPE[subtypeId]) return PROOF_COACH_BY_SUBTYPE[subtypeId];
+  const family = analysis.selectedFamily === "general" ? analysis.jobFamily.family : analysis.selectedFamily;
+  return PROOF_COACH_BY_FAMILY[family] || PROOF_COACH_BY_FAMILY.general;
+}
+
+function isCoachItemProven(item, resumeNorm, analysis) {
+  const patterns = item.patterns || [];
+  if (patterns.length && matchResumeRequirement(resumeNorm, patterns)) return true;
+  const labelNorm = normalize(item.label);
+  return (analysis.keywordData?.exactMatched || []).some(match => {
+    const termNorm = normalize(match.term);
+    return termNorm && (labelNorm.includes(termNorm) || termNorm.includes(labelNorm));
+  });
+}
+
+function requirementToCoachItem(req) {
+  if (GATE_PROOF_COACH[req.gate]) return { ...GATE_PROOF_COACH[req.gate], req };
+  const danger = req.level === "hard" ? "High" : "Medium";
+  return proofCoachItem(req.label, `real proof that you meet this job-post requirement: ${req.label}`, `${req.label}.`, `${req.label}, unless it is accurate and current.`, req.level === "hard" ? "Certification, license, education, or credential section" : "Work experience, skills, or certifications section", danger, [req.label]);
+}
+
+function getTrainingProvidedSafeWording(jobText, analysis) {
+  const job = normalize(jobText);
+  const lines = [];
+  if (job.includes("pesticide license") && (job.includes("90 days") || job.includes("company paid") || job.includes("we teach"))) {
+    lines.push("Willing and able to complete company-paid pesticide licensing within the required 90-day period.");
+  }
+  if ((job.includes("training provided") || job.includes("technical development training")) && (job.includes("cable") || job.includes("hsi") || job.includes("cdv") || job.includes("xhs"))) {
+    lines.push("Willing to complete required technical installation training and certification before performing independent cable, internet, video, or voice installations.");
+  }
+  if (job.includes("alternative certification") && job.includes("bachelor")) {
+    lines.push("Bachelor's degree holder interested in the approved alternative teaching certification pathway.");
+  }
+  if (job.includes("no experience required") && (analysis.realJobType?.id === "pest_control_technician" || job.includes("pest"))) {
+    lines.push("Entry-level pest-control trainee willing to complete route training, licensing, PPE, ladder, crawl-space, and customer-service requirements after hire.");
+  }
+  if (job.includes("no experience required") && (job.includes("cdl") || job.includes("driver"))) {
+    lines.push("Entry-level driver candidate with required license/training only where already completed.");
+  }
+  return cleanList(lines);
+}
+
+function renderCoachList(title, items, options = {}) {
+  const list = cleanList(items).slice(0, options.limit || 6);
+  if (!list.length) return "";
+  return `
+    <div style="margin:14px 0 0">
+      <p style="margin:0 0 8px;color:${options.color || "#f4f7fb"};font-weight:800">${escapeHTML(title)}</p>
+      <ul style="margin:0 0 0 18px;color:${options.textColor || "#d6dbe6"};line-height:1.55">${list.map(item => `<li>${escapeHTML(item)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function renderDetailedCoachItems(title, items, color) {
+  if (!items.length) return "";
+  const cards = items.slice(0, 5).map(item => `
+    <li style="margin:0 0 12px">
+      <strong style="color:${color || "#f4f7fb"}">${escapeHTML(item.label)}</strong><br>
+      <span style="color:#a7b0bf"><strong>What proof counts:</strong> ${escapeHTML(item.proofCounts)}</span><br>
+      <span style="color:#a7ffce"><strong>Safe wording:</strong> ${escapeHTML(item.safeWording)}</span><br>
+      <span style="color:#ffc2cc"><strong>Do not write:</strong> ${escapeHTML(item.doNotWrite)}</span><br>
+      <span style="color:#d6dbe6"><strong>Where to place it:</strong> ${escapeHTML(item.place)}</span><br>
+      <span style="color:#ffd369"><strong>Interview danger:</strong> ${escapeHTML(item.danger)}</span>
+    </li>
+  `).join("");
+  return `
+    <div style="margin:14px 0 0">
+      <p style="margin:0 0 8px;color:${color || "#f4f7fb"};font-weight:800">${escapeHTML(title)}</p>
+      <ul style="margin:0 0 0 18px;color:#d6dbe6;line-height:1.55">${cards}</ul>
+    </div>
+  `;
+}
+
+function renderKeywordProofCoach(container, analysis) {
+  if (!container) return;
+  const rule = getProofCoachRule(analysis);
+  const resumeNorm = normalize(analysis.resumeText || "");
+  const baseItems = rule.items || [];
+  const provenItems = baseItems.filter(item => isCoachItemProven(item, resumeNorm, analysis));
+  const notProvenItems = baseItems.filter(item => !isCoachItemProven(item, resumeNorm, analysis));
+  const hardReqs = (analysis.smartFixes?.hardRequirements || []);
+  const credentialItems = hardReqs
+    .filter(req => req.level === "hard" || /license|certification|degree|clearance|endorsement|mvr|driver/i.test(req.label))
+    .map(requirementToCoachItem);
+  const credentialNotShown = credentialItems.filter(item => !item.req?.met);
+  const trainingLines = getTrainingProvidedSafeWording(analysis.jobText || "", analysis);
+  const provenLabels = cleanList([
+    ...provenItems.map(item => item.label),
+    ...(analysis.keywordData?.exactMatched || []).map(item => item.term)
+  ]).slice(0, 7);
+
+  const topWarning = "These are not automatic resume keywords. Add one only when your real work, training, license, certification, tool, route, machine, or worksite proves it.";
+  container.innerHTML = `
+    <div style="border:1px solid rgba(125,211,252,0.35);background:rgba(125,211,252,0.08);border-radius:16px;padding:14px">
+      <p style="margin:0;color:#d6dbe6;line-height:1.55">${escapeHTML(topWarning)}</p>
+      ${renderCoachList("Proven by your resume", provenLabels, { color: "#a7ffce", textColor: "#d6dbe6", limit: 7 })}
+      ${renderDetailedCoachItems("Add only if your resume proves this", notProvenItems, "#ffd369")}
+      ${renderDetailedCoachItems("Credential gate — do not fake", credentialNotShown, "#ffc2cc")}
+      ${renderCoachList("Safe wording when the job says it trains you", trainingLines, { color: "#a7ffce", textColor: "#d6dbe6", limit: 4 })}
+      <div style="margin:14px 0 0;border-top:1px solid rgba(255,255,255,0.10);padding-top:12px">
+        <p style="margin:0;color:#f4f7fb;font-weight:800">Coach note</p>
+        <p style="margin:6px 0 0;color:#d6dbe6;line-height:1.55">${escapeHTML(rule.note)}</p>
+      </div>
+    </div>
+  `;
 }
 
 function renderMatchedKeywords(container, analysis) {
@@ -1925,6 +2738,10 @@ function analyzeAndRender() {
 
   renderRealJobType($("jobTypeOutput"), analysis);
   renderApplyDecision($("applyDecisionOutput"), analysis);
+  renderApplicationPriority($("applicationPriorityOutput"), analysis);
+  renderFitScores($("fitScoreOutput"), analysis);
+  renderFastestPath($("fastestPathOutput"), analysis);
+  renderKeywordProofCoach($("keywordProofCoachOutput"), analysis);
   renderDiagnosis($("diagnosisOutput"), analysis);
   renderMissingKeywords($("missingKeywords"), analysis);
   renderMatchedKeywords($("matchedKeywords"), analysis);
@@ -1947,7 +2764,7 @@ function clearAnalyzer() {
   if ($("scoreValue")) $("scoreValue").textContent = "0";
   if ($("scoreMessage")) $("scoreMessage").textContent = "";
   if ($("scoreBar")) $("scoreBar").style.width = "0%";
-  ["jobTypeOutput", "applyDecisionOutput", "diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
+  ["jobTypeOutput", "applyDecisionOutput", "applicationPriorityOutput", "fitScoreOutput", "fastestPathOutput", "keywordProofCoachOutput", "diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
     const el = $(id);
     if (el) el.textContent = "";
   });

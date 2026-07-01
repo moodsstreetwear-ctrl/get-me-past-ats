@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, find missing keywords, catch red flags, and track applications." />
+  <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, detect hard gates, judge recruiter fit, rank application priority, and track applications." />
   <title>GET ME PAST ATS</title>
   <link rel="stylesheet" href="styles.css?v=all-buttons-v1" />
 </head>
@@ -54,7 +54,7 @@
           <div class="drawer-plan-grid">
             <div>
               <strong>Current version</strong>
-              <p>Real job type detector, apply decision, match score, honest diagnosis, missing proof, ATS wording, red flags, and application tracker.</p>
+              <p>Real job type detector, apply decision, ATS fit, recruiter fit, application priority, fastest path to interviews, keyword proof coaching, and application tracker.</p>
             </div>
             <div>
               <strong>Pro idea</strong>
@@ -121,17 +121,17 @@
         <p class="eyebrow">Resume + Job Post Analyzer</p>
         <h1>Stop applying blind.</h1>
         <p class="hero-copy">
-          Compare your resume to any job post, find missing keywords, catch red flags, and get ATS-friendly wording based on real experience only.
+          Compare your resume to any job post, detect hard gates, see ATS fit versus recruiter fit, rank application priority, and get ATS-friendly wording based on real experience only.
         </p>
         <div class="hero-actions">
           <a class="button primary" href="#analyzer">Analyze My Resume</a>
           <button class="button secondary" type="button" data-open-account>Create Free Account</button>
         </div>
         <div class="hero-proof" aria-label="Product highlights">
-          <span>Apply decision</span>
-          <span>Hard gate check</span>
+          <span>Application priority</span>
+          <span>ATS + recruiter fit</span>
           <span>No fake experience</span>
-          <span>Tracker</span>
+          <span>Fastest path</span>
         </div>
       </div>
 
@@ -154,18 +154,18 @@
     <section class="feature-strip" id="features" aria-label="Key features">
       <article class="feature-card">
         <span class="feature-icon">01</span>
-        <h3>Apply Decision Engine</h3>
-        <p>See whether to apply now, fix wording first, confirm a requirement, or skip the job.</p>
+        <h3>Application Priority Engine</h3>
+        <p>See whether a job is Priority A, B, C, D, or F before spending time on the application.</p>
       </article>
       <article class="feature-card">
         <span class="feature-icon">02</span>
-        <h3>Hard Requirement Gate</h3>
-        <p>Flags licenses, CDL endorsements, clearances, degrees, age rules, MVR, drug tests, and experience gates before rewriting.</p>
+        <h3>ATS + Recruiter Fit</h3>
+        <p>Separates keyword match from whether the resume proves the job well enough for a human recruiter.</p>
       </article>
       <article class="feature-card">
         <span class="feature-icon">03</span>
-        <h3>Application Tracker</h3>
-        <p>Save companies, job titles, pay, status, and follow-up details so nothing gets lost.</p>
+        <h3>Fastest Path to Interviews</h3>
+        <p>Shows jobs to apply to first, jobs to build toward, and roles to avoid until proof is stronger.</p>
       </article>
     </section>
 
@@ -262,9 +262,33 @@
         <div class="copy-box" id="applyDecisionOutput">Run a scan to see if you should apply now, fix wording first, confirm a hard requirement, or skip the job.</div>
       </article>
 
+      <article class="panel">
+        <p class="eyebrow">Application Priority</p>
+        <h3>Where should this application rank?</h3>
+        <div class="copy-box" id="applicationPriorityOutput">Run a scan to see whether this job is Priority A, B, C, D, or F.</div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">ATS + Recruiter Fit</p>
+        <h3>Keyword match versus human proof</h3>
+        <div class="copy-box" id="fitScoreOutput">Run a scan to compare ATS fit, recruiter fit, and missing proof by impact.</div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Fastest Path to Interviews</p>
+        <h3>What should you target first?</h3>
+        <div class="copy-box" id="fastestPathOutput">Run a scan to see which jobs to apply to first, which ones to build toward, and which ones to avoid for now.</div>
+      </article>
+
+      <article class="panel">
+        <p class="eyebrow">Keyword Proof Coach</p>
+        <h3>Only add what your resume proves</h3>
+        <div class="copy-box" id="keywordProofCoachOutput">Run a scan to see which job-post words are already proven, which ones need real proof, and which ones you should not fake.</div>
+      </article>
+
       <article class="panel score-panel">
         <p class="eyebrow">Resume Report</p>
-        <h3>Your Match Score</h3>
+        <h3>Your ATS Fit Score</h3>
         <div class="big-score"><span id="scoreValue">0</span>%</div>
         <p id="scoreMessage" class="score-message"></p>
         <div class="score-bar"><span id="scoreBar"></span></div>
@@ -277,14 +301,14 @@
       </article>
 
       <article class="panel">
-        <p class="eyebrow">Smart Keyword Match</p>
-        <h3>High-priority and helpful keywords your resume may not show</h3>
+        <p class="eyebrow">Proof Gaps</p>
+        <h3>What the resume still needs to prove</h3>
         <div class="chip-list" id="missingKeywords"></div>
       </article>
 
       <article class="panel">
-        <p class="eyebrow">Keyword Confidence</p>
-        <h3>Exact job-skill proof already found</h3>
+        <p class="eyebrow">Proof Already Found</p>
+        <h3>Job-specific proof the resume already shows</h3>
         <div class="chip-list good" id="matchedKeywords"></div>
       </article>
 
@@ -366,7 +390,7 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=real-job-detector-v1"></script>
+  <script type="module" src="app.js?v=v6-job-targeting-engine"></script>
   <script>
     // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {
