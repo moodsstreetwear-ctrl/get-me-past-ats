@@ -1,6 +1,6 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "apply-decision-gate-v1";
+window.GMPT_APP_VERSION = "real-job-detector-v1";
 
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "you", "your", "are", "that", "this", "from", "will", "have", "has", "our",
@@ -1059,6 +1059,144 @@ function isGigOrLowQualityPost(jobText) {
   return { hit: false, risk: "none", reason: "" };
 }
 
+
+// V5: real job family/subtype detector. This explains what the job really is before scoring the resume.
+function subtypeRule(id, label, family, resumeMode, watchOut, patterns) {
+  return { id, label, family, resumeMode, watchOut, patterns };
+}
+
+const REAL_JOB_SUBTYPE_RULES = [
+  subtypeRule("pest_control_technician", "Pest Control Technician / Route Service Technician", "Field Service / Pest Control", "Field service / route technician wording", "This is not just general customer service. It is a route-based field service job with driving, inspections, physical work, and licensing.", [
+    ["pest control", 6], ["pest management", 6], ["orkin", 6], ["pesticide license", 7], ["route schedule", 5], ["assigned territory", 4], ["treatment planning", 5], ["property inspection", 4], ["inspect the interior and exterior", 4], ["customer homes", 3], ["customer businesses", 3], ["handheld device", 3], ["crawl spaces", 4], ["attics", 4], ["osha-compliant respirator", 4], ["company vehicle", 3]
+  ]),
+  subtypeRule("cable_installation_technician", "Cable Installation Technician / Telecom Field Technician", "Telecom / Cable Field Service", "Cable installer / telecom field technician wording", "This is not IT help desk. It is hands-on field installation in customer homes or businesses.", [
+    ["cable systems", 6], ["video", 3], ["hsi", 7], ["xhs", 7], ["cdv", 7], ["residential/commercial", 4], ["install residential", 4], ["commercial video", 4], ["dispatch", 4], ["arrivals", 3], ["departures", 3], ["local travel 100", 5], ["28 ft", 4], ["ladders", 4], ["confined spaces", 3], ["mvr", 4], ["operating systems", 2]
+  ]),
+  subtypeRule("security_installation_technician", "Security Installation Technician / Low-Voltage Alarm Technician", "Low-Voltage / Security Installation", "Low-voltage installer / field technician wording", "This is not a Security Officer job. Do not use guard, patrol, or surveillance wording unless the job actually asks for it.", [
+    ["alarm systems", 7], ["control panels", 5], ["sensors", 5], ["cameras", 4], ["security installation", 7], ["low voltage", 7], ["access control", 4], ["customer education", 3], ["install", 2], ["troubleshooting", 3], ["alarm agent", 6], ["basic tools", 2], ["ladder", 2]
+  ]),
+  subtypeRule("paid_survey_focus_group", "Paid Survey / Focus Group Gig", "Gig / Research Task", "No resume rewrite needed", "This does not look like a stable job. It may not provide steady hours, benefits, or guaranteed income.", [
+    ["focus group", 8], ["paid survey", 8], ["surveys", 6], ["product testing", 7], ["feedback", 3], ["participate", 3], ["remote participation", 5], ["no experience required", 2], ["gift card", 5], ["earn", 2]
+  ]),
+  subtypeRule("certified_classroom_teacher", "Certified Classroom Teacher / K-12 Teacher", "Education / Teaching", "Certified teacher wording", "This is not Teacher Assistant work. It usually requires a bachelor's degree and state teaching certification or alternative certification eligibility.", [
+    ["state teaching certification", 8], ["bachelor", 5], ["alternative certification", 6], ["classroom", 3], ["lesson planning", 4], ["students", 3], ["technology-driven classrooms", 4], ["professional development", 3], ["equity", 3], ["inclusion", 3], ["educational leadership", 3]
+  ]),
+  subtypeRule("early_childhood_teacher", "Daycare Teacher / Early Childhood Education Teacher", "Education / Childcare", "Early childhood / daycare teacher wording", "This is not a K-12 certified teacher role unless the posting says so. It is early childhood classroom and child-development work.", [
+    ["early childhood", 8], ["daycare", 7], ["preschool", 7], ["age-appropriate curriculum", 6], ["play-based learning", 5], ["social-emotional", 5], ["parent", 3], ["guardian", 3], ["milestones", 4], ["montessori", 4], ["behavior management", 4], ["arts and crafts", 3], ["storytelling", 3]
+  ]),
+  subtypeRule("sql_server_dba", "SQL Server Database Administrator / SQL DBA", "Advanced IT / Database Administration", "SQL DBA wording only when proven", "This is not entry-level IT support. It is an advanced database administration job.", [
+    ["sql server dba", 9], ["database administrator", 8], ["t-sql", 7], ["performance tuning", 6], ["backup", 4], ["recovery", 4], ["disaster recovery", 5], ["migrations", 5], ["upgrades", 4], ["patching", 3], ["ssis", 5], ["ssrs", 5], ["ssas", 5], ["azure sql", 5], ["5+ years", 4]
+  ]),
+  subtypeRule("cleared_python_software_engineer", "Cleared Python Software Engineer / Mission Software Developer", "Cleared Software / Defense Tech", "Cleared software engineer wording only when proven", "This is not a regular Python job. Active TS/SCI with Polygraph is a hard gate.", [
+    ["ts/sci", 9], ["polygraph", 9], ["active clearance", 7], ["python", 4], ["back-end services", 5], ["backend services", 5], ["data processing at scale", 5], ["active mq", 5], ["activemq", 5], ["nosql", 5], ["elastic", 4], ["linux", 4], ["ci/cd", 4], ["jira", 3], ["confluence", 3], ["tier 3", 4]
+  ]),
+  subtypeRule("dotnet_web_developer", ".NET Web Developer / C# ASP.NET Developer", "Software Development", "Software developer wording only when proven", "This is software development, not IT help desk. Do not use support-tech wording as if it proves developer experience.", [
+    ["c#", 7], ["asp.net", 8], ["mvc", 5], ["razor", 5], ["entity framework", 6], ["linq", 5], ["web api", 5], ["front-end", 3], ["back-end", 3], ["source control", 3], ["unit testing", 4], ["sdlc", 3]
+  ]),
+  subtypeRule("qa_automation_developer", "QA Automation / Software Tester Developer Hybrid", "Software QA / Automation", "QA automation wording only when proven", "This is not basic software use. It needs testing, defect tracking, and sometimes coding proof.", [
+    ["test cases", 6], ["test plans", 6], ["automated testing", 7], ["qa methodology", 7], ["defects", 4], ["defect tracking", 5], ["requirements", 2], ["usability", 3], ["performance", 3], ["scalability", 3], ["c#", 3], ["asp.net", 3]
+  ]),
+  subtypeRule("cybersecurity_grc_analyst", "Cybersecurity GRC / Compliance Analyst", "Cybersecurity Governance, Risk & Compliance", "Cybersecurity GRC wording only when proven", "This is not entry-level cyber. It is regulated compliance, risk, documentation, and control work.", [
+    ["nist", 8], ["800-53", 8], ["fips", 6], ["ssp", 7], ["ato", 7], ["risk assessment", 6], ["grc", 7], ["governance", 5], ["compliance", 4], ["security controls", 5], ["cissp", 5], ["disaster recovery plan", 4], ["regulated environment", 4]
+  ]),
+  subtypeRule("industrial_automation_scada", "Industrial Automation / Wonderware SCADA Developer", "Industrial Automation Software", "Industrial automation / SCADA wording only when proven", "This is not regular IT support or generic software development. It is industrial automation software work.", [
+    ["wonderware", 9], ["scada", 9], ["hmi", 6], ["industrial automation", 7], ["vb.net", 5], ["ado.net", 5], ["advanced t-sql", 5], ["post-implementation", 3], ["concept to", 2]
+  ]),
+  subtypeRule("commercial_kitchen_equipment_tech", "Commercial Cooking Equipment Technician", "Commercial Equipment Repair / Field Service", "Commercial equipment repair wording only when proven", "This is not general maintenance. It is specialized food-service equipment repair.", [
+    ["commercial cooking equipment", 9], ["food service equipment", 8], ["commercial kitchen", 7], ["warranty", 4], ["non-warranty", 4], ["emergency repair", 4], ["epa universal", 6], ["manufacturer", 3], ["parts", 2], ["billing", 2]
+  ]),
+  subtypeRule("auto_body_collision_tech", "Auto Body Technician / Collision Repair Technician", "Automotive Collision Repair", "Auto body repair wording only when proven", "This is not regular mechanic work. It is body, panel, sanding, filler, and collision repair.", [
+    ["collision repair", 8], ["auto body", 8], ["body filler", 6], ["panel replacement", 6], ["disassembly", 4], ["dent", 4], ["sanding", 4], ["grinding", 3], ["paint department", 5], ["i-car", 5], ["ase", 3]
+  ]),
+  subtypeRule("cdl_tanker_hazmat_driver", "CDL-A Tanker / Hazmat Truck Driver", "CDL / Specialized Truck Driving", "CDL tanker/hazmat wording only when proven", "This is not an entry-level CDL job. Tanker, Hazmat, driving history, and sometimes manual transmission ability can block applicants.", [
+    ["tanker", 8], ["hazmat", 8], ["endorsement", 5], ["cdl-a", 5], ["class a", 4], ["10-speed", 5], ["manual", 4], ["loads per day", 4], ["commercial driving", 3], ["no restrictions", 4]
+  ]),
+  subtypeRule("cdl_local_dedicated_driver", "CDL-A Dedicated Local / Dry Van Driver", "CDL / Local Truck Driving", "CDL driver wording only when proven", "This is CDL driver work, not general delivery. Tractor-trailer experience may be a hard gate.", [
+    ["cdl-a", 5], ["class a", 4], ["dry van", 6], ["drop and hook", 6], ["tractor-trailer", 6], ["home daily", 4], ["dedicated", 3], ["eld", 4], ["qualcomm", 4], ["local", 2]
+  ]),
+  subtypeRule("railcar_switchman", "Railcar Switchman / Rail Yard Groundman", "Rail Yard Operations", "Rail yard / switchman wording only when proven", "This is rail yard switching work, not just warehouse or outdoor labor.", [
+    ["throw switches", 8], ["coupling", 7], ["uncoupling", 7], ["air hoses", 6], ["hand brakes", 6], ["radio signals", 5], ["hand signals", 5], ["trackmobile", 6], ["railcar", 4], ["rail yard", 5]
+  ]),
+  subtypeRule("industrial_shipping_loader", "Industrial Shipping Loader / Shipping Operations Technician", "Industrial Shipping / Loading", "Shipping loader wording only when proven", "This is physical shipping/loading operations, not just a desk shipping clerk role.", [
+    ["bill of lading", 7], ["flatbed", 5], ["van loading", 5], ["railcar loading", 7], ["fork truck", 5], ["shipping issues", 4], ["nonconforming", 4], ["inbound sheets", 4], ["counts", 2], ["labeling", 2]
+  ])
+];
+
+function scoreSubtypeRule(jobNorm, rule) {
+  let score = 0;
+  const clues = [];
+  rule.patterns.forEach(([pattern, weight]) => {
+    const normalizedPattern = normalize(pattern);
+    if (!normalizedPattern) return;
+    const found = normalizedPattern.length <= 3 ? wordAppears(jobNorm, normalizedPattern) : jobNorm.includes(normalizedPattern);
+    if (found) {
+      score += weight;
+      clues.push(pattern);
+    }
+  });
+  return { ...rule, score, clues: cleanList(clues) };
+}
+
+function fallbackRealJobType(jobFamily, selected) {
+  const family = jobFamily.family && jobFamily.family !== "general" ? jobFamily.family : selected.family;
+  const familyLabel = FAMILY_LABELS[family] || selected.label || "General job";
+  return {
+    id: "broad_family",
+    label: `${familyLabel} role`,
+    family: familyLabel,
+    resumeMode: `${familyLabel} wording`,
+    watchOut: "This job post does not have enough subtype clues for a precise label. Use the hard requirements and proof gaps before copying wording.",
+    confidence: "Low",
+    confidenceScore: 0,
+    clues: jobFamily.matched || [],
+    alternatives: []
+  };
+}
+
+function detectRealJobType(jobText, selected, jobFamily) {
+  const jobNorm = normalize(jobText);
+  const scored = REAL_JOB_SUBTYPE_RULES
+    .map(rule => scoreSubtypeRule(jobNorm, rule))
+    .sort((a, b) => b.score - a.score);
+  const best = scored[0] || { score: 0, clues: [] };
+  if (!best.score || best.score < 8 || best.clues.length < 2) {
+    return fallbackRealJobType(jobFamily, selected);
+  }
+
+  let confidence = "Low";
+  if (best.score >= 20 && best.clues.length >= 4) confidence = "High";
+  else if (best.score >= 12 && best.clues.length >= 3) confidence = "Medium";
+
+  const alternatives = scored
+    .filter(item => item.id !== best.id && item.score >= Math.max(8, Math.round(best.score * 0.65)))
+    .slice(0, 2)
+    .map(item => item.label);
+
+  return {
+    id: best.id,
+    label: best.label,
+    family: best.family,
+    resumeMode: best.resumeMode,
+    watchOut: best.watchOut,
+    confidence,
+    confidenceScore: best.score,
+    clues: best.clues.slice(0, 9),
+    alternatives
+  };
+}
+
+function buildSelectedTypeWarning(realJobType, selected) {
+  if (!realJobType || realJobType.id === "broad_family") return "";
+  const selectedLabel = normalize(selected.label || "");
+  const realLabel = normalize(realJobType.label || "");
+  const selectedFamilyLabel = normalize(FAMILY_LABELS[selected.family] || "");
+  const realFamily = normalize(realJobType.family || "");
+  if (selected.family === "general") return "";
+  if (realLabel.includes(selectedLabel) || selectedLabel.includes(realLabel)) return "";
+  if (selectedFamilyLabel && realFamily.includes(selectedFamilyLabel)) return "";
+  return `You selected ${selected.label}, but the duties read closer to ${realJobType.label}. Use the detected job type before trusting resume wording.`;
+}
+
 function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily }) {
   const reqs = smartFixes?.hardRequirements || [];
   const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
@@ -1511,7 +1649,8 @@ function analyzeResume(resumeText, jobText, jobType) {
   const targetForFixes = targetFamily === "general" ? selectedFamily : targetFamily;
   const smartFixes = buildSmartFixes(resumeText, jobText, targetForFixes, selected, keywordData);
   const applyDecision = buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily });
-  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes, applyDecision });
+  const realJobType = detectRealJobType(jobText, selected, jobFamily);
+  const output = buildOutput({ diagnosis, selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, resumeText, smartFixes, applyDecision, realJobType });
   let displayScore = keywordData.score;
   const missingConfirmations = smartFixes.hardRequirements.filter(item => !item.met).length + keywordData.helpfulMissing.length + keywordData.softMissing.length;
   if (displayScore >= 97 && missingConfirmations > 0) displayScore = 96;
@@ -1525,6 +1664,7 @@ function analyzeResume(resumeText, jobText, jobType) {
     evidenceTerms,
     smartFixes,
     applyDecision,
+    realJobType,
     diagnosis,
     output,
     score: displayScore
@@ -1584,6 +1724,38 @@ function renderKeywordGroup(container, title, items, note) {
 
   group.appendChild(chips);
   container.appendChild(group);
+}
+
+
+function renderRealJobType(container, analysis) {
+  if (!container) return;
+  const info = analysis.realJobType || fallbackRealJobType(analysis.jobFamily, analysis.selected);
+  const selectedWarning = buildSelectedTypeWarning(info, analysis.selected);
+  const confidenceColors = {
+    High: { border: "rgba(167,255,206,0.45)", bg: "rgba(167,255,206,0.10)", title: "#a7ffce" },
+    Medium: { border: "rgba(255,211,105,0.45)", bg: "rgba(255,211,105,0.10)", title: "#ffd369" },
+    Low: { border: "rgba(255,181,90,0.45)", bg: "rgba(255,181,90,0.10)", title: "#ffcf9a" }
+  };
+  const colors = confidenceColors[info.confidence] || confidenceColors.Low;
+  const clues = info.clues && info.clues.length ? info.clues : ["not enough clear subtype clues"];
+  const clueList = clues.slice(0, 9).map(item => `<li>${escapeHTML(item)}</li>`).join("");
+  const alternatives = info.alternatives && info.alternatives.length
+    ? `<p style="margin:10px 0 0;color:#a7b0bf;line-height:1.45"><strong>Other possible type:</strong> ${escapeHTML(joinEnglish(info.alternatives))}</p>`
+    : "";
+  const warningText = selectedWarning || info.watchOut || "Use the detected job type, hard requirements, and proof gaps before copying any wording.";
+  container.innerHTML = `
+    <div style="border:1px solid ${colors.border};background:${colors.bg};border-radius:16px;padding:14px">
+      <p style="margin:0 0 6px;color:#a7b0bf;line-height:1.45"><strong>This job looks like:</strong></p>
+      <h4 style="margin:0 0 10px;color:${colors.title};font-size:1.08rem">${escapeHTML(info.label)}</h4>
+      <p style="margin:0 0 8px;color:#d6dbe6;line-height:1.45"><strong>Job family:</strong> ${escapeHTML(info.family)}</p>
+      <p style="margin:0 0 8px;color:#d6dbe6;line-height:1.45"><strong>Confidence:</strong> ${escapeHTML(info.confidence)}</p>
+      <p style="margin:0 0 6px;color:#f4f7fb;font-weight:700">Why the app picked this:</p>
+      <ul style="margin:0 0 10px 18px;color:#d6dbe6;line-height:1.5">${clueList}</ul>
+      <p style="margin:0 0 8px;color:#ffc2cc;line-height:1.45"><strong>Watch out:</strong> ${escapeHTML(warningText)}</p>
+      <p style="margin:0;color:#a7ffce;line-height:1.45"><strong>Best resume mode:</strong> ${escapeHTML(info.resumeMode)}</p>
+      ${alternatives}
+    </div>
+  `;
 }
 
 function renderDiagnosis(container, analysis) {
@@ -1751,6 +1923,7 @@ function analyzeAndRender() {
   if ($("scoreMessage")) $("scoreMessage").textContent = getScoreMessage(analysis);
   if ($("scoreBar")) $("scoreBar").style.width = `${Math.max(5, analysis.score)}%`;
 
+  renderRealJobType($("jobTypeOutput"), analysis);
   renderApplyDecision($("applyDecisionOutput"), analysis);
   renderDiagnosis($("diagnosisOutput"), analysis);
   renderMissingKeywords($("missingKeywords"), analysis);
@@ -1774,7 +1947,7 @@ function clearAnalyzer() {
   if ($("scoreValue")) $("scoreValue").textContent = "0";
   if ($("scoreMessage")) $("scoreMessage").textContent = "";
   if ($("scoreBar")) $("scoreBar").style.width = "0%";
-  ["applyDecisionOutput", "diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
+  ["jobTypeOutput", "applyDecisionOutput", "diagnosisOutput", "missingKeywords", "matchedKeywords", "redFlags", "summaryOutput", "bulletOutput"].forEach(id => {
     const el = $(id);
     if (el) el.textContent = "";
   });

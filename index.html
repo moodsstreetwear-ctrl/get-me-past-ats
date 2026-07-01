@@ -54,7 +54,7 @@
           <div class="drawer-plan-grid">
             <div>
               <strong>Current version</strong>
-              <p>Match score, honest diagnosis, job-type warning, missing proof, ATS wording, red flags, and application tracker.</p>
+              <p>Real job type detector, apply decision, match score, honest diagnosis, missing proof, ATS wording, red flags, and application tracker.</p>
             </div>
             <div>
               <strong>Pro idea</strong>
@@ -250,18 +250,24 @@
     </section>
 
     <section class="results-grid report-grid" id="results" hidden>
-      <article class="panel score-panel">
-        <p class="eyebrow">Resume Report</p>
-        <h3>Your Match Score</h3>
-        <div class="big-score"><span id="scoreValue">0</span>%</div>
-        <p id="scoreMessage" class="score-message"></p>
-        <div class="score-bar"><span id="scoreBar"></span></div>
+      <article class="panel">
+        <p class="eyebrow">Real Job Type Detected</p>
+        <h3>What job is this really?</h3>
+        <div class="copy-box" id="jobTypeOutput">Run a scan to see the real job type, why the app picked it, and whether the title may be misleading.</div>
       </article>
 
       <article class="panel">
         <p class="eyebrow">Apply Decision</p>
         <h3>Should you apply?</h3>
         <div class="copy-box" id="applyDecisionOutput">Run a scan to see if you should apply now, fix wording first, confirm a hard requirement, or skip the job.</div>
+      </article>
+
+      <article class="panel score-panel">
+        <p class="eyebrow">Resume Report</p>
+        <h3>Your Match Score</h3>
+        <div class="big-score"><span id="scoreValue">0</span>%</div>
+        <p id="scoreMessage" class="score-message"></p>
+        <div class="score-bar"><span id="scoreBar"></span></div>
       </article>
 
       <article class="panel">
@@ -360,7 +366,7 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=apply-decision-gate-v1"></script>
+  <script type="module" src="app.js?v=real-job-detector-v1"></script>
   <script>
     // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {
