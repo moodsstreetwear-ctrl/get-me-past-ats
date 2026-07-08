@@ -6,6 +6,7 @@
   <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, detect hard gates, judge recruiter fit, rank application priority, and track applications." />
   <title>GET ME PAST ATS</title>
   <link rel="stylesheet" href="styles.css?v=all-buttons-v1" />
+  <link rel="stylesheet" href="ui-simplified.css?v=ui-simplification-v1" />
 </head>
 <body>
   <header class="hero" id="home">
@@ -121,59 +122,52 @@
         <p class="eyebrow">Resume + Job Post Analyzer</p>
         <h1>Stop applying blind.</h1>
         <p class="hero-copy">
-          Compare your resume to any job post, detect hard gates, see ATS fit versus recruiter fit, rank application priority, and get ATS-friendly wording based on real experience only.
+          Paste your resume and the job post. Get a clear apply decision, proof gaps, and safe wording without faking experience.
         </p>
         <div class="hero-actions">
-          <a class="button primary" href="#analyzer">Analyze My Resume</a>
-          <button class="button secondary" type="button" data-open-account>Create Free Account</button>
+          <a class="button primary" href="#analyzer">Start Scan</a>
+          <button class="button secondary" type="button" data-open-account>Save My Tracker</button>
         </div>
         <div class="hero-proof" aria-label="Product highlights">
-          <span>Application priority</span>
+          <span>Apply decision</span>
           <span>ATS + recruiter fit</span>
+          <span>Proof gaps</span>
           <span>No fake experience</span>
-          <span>Fastest path</span>
         </div>
       </div>
-
-      <aside class="product-card preview-card" aria-label="Product preview">
-        <div class="preview-topline">
-          <p class="card-label">Resume Report</p>
-          <span class="live-pill">Live</span>
-        </div>
-        <div class="circle-score"><span>82%</span></div>
-        <div class="mini-report-list">
-          <div><strong>Diagnosis:</strong> Good Match</div>
-          <div><strong>Proof:</strong> machine operation, safety, quality checks</div>
-          <div><strong>Rule:</strong> ATS wording only if true</div>
-        </div>
-      </aside>
     </section>
   </header>
 
   <main>
-    <section class="feature-strip" id="features" aria-label="Key features">
+    <section class="feature-strip" id="features" aria-label="How it works">
       <article class="feature-card">
-        <span class="feature-icon">01</span>
-        <h3>Application Priority Engine</h3>
-        <p>See whether a job is Priority A, B, C, D, or F before spending time on the application.</p>
+        <span class="feature-icon">1</span>
+        <div>
+          <h3>Paste both texts</h3>
+          <p>Your resume on one side, the real job post on the other.</p>
+        </div>
       </article>
       <article class="feature-card">
-        <span class="feature-icon">02</span>
-        <h3>ATS + Recruiter Fit</h3>
-        <p>Separates keyword match from whether the resume proves the job well enough for a human recruiter.</p>
+        <span class="feature-icon">2</span>
+        <div>
+          <h3>Read the decision</h3>
+          <p>See if the job is worth applying to now, after fixes, or not yet.</p>
+        </div>
       </article>
       <article class="feature-card">
-        <span class="feature-icon">03</span>
-        <h3>Fastest Path to Interviews</h3>
-        <p>Shows jobs to apply to first, jobs to build toward, and roles to avoid until proof is stronger.</p>
+        <span class="feature-icon">3</span>
+        <div>
+          <h3>Copy safe wording</h3>
+          <p>Only use wording that your resume already proves.</p>
+        </div>
       </article>
     </section>
 
     <section class="panel" id="analyzer">
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
-        <h2>Paste your resume and the job description</h2>
-        <p>Paste both pieces below. The app detects the real job type automatically before it writes anything.</p>
+        <h2>Paste your resume and job post</h2>
+        <p>The app detects the real job type automatically before it writes anything.</p>
       </div>
 
       <div class="input-grid">
@@ -194,10 +188,12 @@
     </section>
 
     <section class="results-grid report-grid" id="results" hidden>
-      <article class="panel">
-        <p class="eyebrow">Real Job Type Detected</p>
-        <h3>What job is this really?</h3>
-        <div class="copy-box" id="jobTypeOutput">Run a scan to see the real job type, why the app picked it, and whether the title may be misleading.</div>
+      <article class="panel score-panel">
+        <p class="eyebrow">Resume Report</p>
+        <h3>Your ATS Fit Score</h3>
+        <div class="big-score"><span id="scoreValue">0</span>%</div>
+        <p id="scoreMessage" class="score-message"></p>
+        <div class="score-bar"><span id="scoreBar"></span></div>
       </article>
 
       <article class="panel">
@@ -218,49 +214,52 @@
         <div class="copy-box" id="fitScoreOutput">Run a scan to compare ATS fit, recruiter fit, and missing proof by impact.</div>
       </article>
 
-      <article class="panel">
-        <p class="eyebrow">Fastest Path to Interviews</p>
-        <h3>What should you target first?</h3>
-        <div class="copy-box" id="fastestPathOutput">Run a scan to see which jobs to apply to first, which ones to build toward, and which ones to avoid for now.</div>
-      </article>
+      <details class="report-details">
+        <summary>Show full report details</summary>
+        <div class="report-details-grid">
+          <article class="panel">
+            <p class="eyebrow">Real Job Type Detected</p>
+            <h3>What job is this really?</h3>
+            <div class="copy-box" id="jobTypeOutput">Run a scan to see the real job type, why the app picked it, and whether the title may be misleading.</div>
+          </article>
 
-      <article class="panel">
-        <p class="eyebrow">Keyword Proof Coach</p>
-        <h3>Only add what your resume proves</h3>
-        <div class="copy-box" id="keywordProofCoachOutput">Run a scan to see which job-post words are already proven, which ones need real proof, and which ones you should not fake.</div>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Fastest Path to Interviews</p>
+            <h3>What should you target first?</h3>
+            <div class="copy-box" id="fastestPathOutput">Run a scan to see which jobs to apply to first, which ones to build toward, and which ones to avoid for now.</div>
+          </article>
 
-      <article class="panel score-panel">
-        <p class="eyebrow">Resume Report</p>
-        <h3>Your ATS Fit Score</h3>
-        <div class="big-score"><span id="scoreValue">0</span>%</div>
-        <p id="scoreMessage" class="score-message"></p>
-        <div class="score-bar"><span id="scoreBar"></span></div>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Keyword Proof Coach</p>
+            <h3>Only add what your resume proves</h3>
+            <div class="copy-box" id="keywordProofCoachOutput">Run a scan to see which job-post words are already proven, which ones need real proof, and which ones you should not fake.</div>
+          </article>
 
-      <article class="panel">
-        <p class="eyebrow">Resume Direction</p>
-        <h3>Honest ATS guidance</h3>
-        <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, wording gap, weak evidence, or the wrong job type.</div>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Resume Direction</p>
+            <h3>Honest ATS guidance</h3>
+            <div class="copy-box" id="diagnosisOutput">Run a scan to see whether this is a good match, wording gap, weak evidence, or the wrong job type.</div>
+          </article>
 
-      <article class="panel">
-        <p class="eyebrow">Proof Gaps</p>
-        <h3>What the resume still needs to prove</h3>
-        <div class="chip-list" id="missingKeywords"></div>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Proof Gaps</p>
+            <h3>What the resume still needs to prove</h3>
+            <div class="chip-list" id="missingKeywords"></div>
+          </article>
 
-      <article class="panel">
-        <p class="eyebrow">Proof Already Found</p>
-        <h3>Job-specific proof the resume already shows</h3>
-        <div class="chip-list good" id="matchedKeywords"></div>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Proof Already Found</p>
+            <h3>Job-specific proof the resume already shows</h3>
+            <div class="chip-list good" id="matchedKeywords"></div>
+          </article>
 
-      <article class="panel">
-        <p class="eyebrow">Red Flags</p>
-        <h3>Fix these before applying</h3>
-        <ul class="notes" id="redFlags"></ul>
-      </article>
+          <article class="panel">
+            <p class="eyebrow">Red Flags</p>
+            <h3>Fix these before applying</h3>
+            <ul class="notes" id="redFlags"></ul>
+          </article>
+        </div>
+      </details>
     </section>
 
     <section class="panel" id="rewrite" hidden>
