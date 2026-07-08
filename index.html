@@ -173,7 +173,7 @@
       <div class="section-heading">
         <p class="eyebrow">Step 1</p>
         <h2>Paste your resume and the job description</h2>
-        <p>Paste both pieces below. The report diagnoses the match before it writes anything.</p>
+        <p>Paste both pieces below. The app detects the real job type automatically before it writes anything.</p>
       </div>
 
       <div class="input-grid">
@@ -188,63 +188,7 @@
       </div>
 
       <div class="controls">
-        <label>
-          Job type
-          <select id="jobType">
-            <option value="general">General / Any Job</option>
-            <option value="customer_service_representative">Customer Service Representative</option>
-            <option value="data_entry_clerk">Data Entry Clerk</option>
-            <option value="administrative_assistant">Administrative Assistant</option>
-            <option value="receptionist">Receptionist</option>
-            <option value="call_center_representative">Call Center Representative</option>
-            <option value="remote_customer_support_representative">Remote Customer Support Representative</option>
-            <option value="office_assistant">Office Assistant</option>
-            <option value="sales_representative">Sales Representative</option>
-            <option value="retail_associate">Retail Associate</option>
-            <option value="cashier">Cashier</option>
-            <option value="stocker">Stocker</option>
-            <option value="warehouse_associate">Warehouse Associate</option>
-            <option value="package_handler">Package Handler</option>
-            <option value="material_handler">Material Handler</option>
-            <option value="forklift_operator">Forklift Operator</option>
-            <option value="delivery_driver">Delivery Driver</option>
-            <option value="truck_driver">Truck Driver</option>
-            <option value="machine_operator">Machine Operator</option>
-            <option value="production_worker">Production Worker</option>
-            <option value="assembly_worker">Assembly Worker</option>
-            <option value="maintenance_technician">Maintenance Technician</option>
-            <option value="apartment_maintenance_technician">Apartment Maintenance Technician</option>
-            <option value="electrician">Electrician</option>
-            <option value="welder">Welder</option>
-            <option value="diesel_mechanic">Diesel Mechanic</option>
-            <option value="construction_laborer">Construction Laborer</option>
-            <option value="carpenter">Carpenter</option>
-            <option value="security_officer">Security Officer</option>
-            <option value="janitor">Janitor</option>
-            <option value="housekeeper">Housekeeper</option>
-            <option value="hotel_front_desk_agent">Hotel Front Desk Agent</option>
-            <option value="server">Server</option>
-            <option value="cook">Cook</option>
-            <option value="certified_nursing_assistant">Certified Nursing Assistant</option>
-            <option value="medical_assistant">Medical Assistant</option>
-            <option value="patient_care_technician">Patient Care Technician</option>
-            <option value="home_health_aide">Home Health Aide</option>
-            <option value="phlebotomist">Phlebotomist</option>
-            <option value="pharmacy_technician">Pharmacy Technician</option>
-            <option value="dental_assistant">Dental Assistant</option>
-            <option value="licensed_practical_nurse">Licensed Practical Nurse</option>
-            <option value="registered_nurse">Registered Nurse</option>
-            <option value="medical_billing_specialist">Medical Billing Specialist</option>
-            <option value="medical_coding_specialist">Medical Coding Specialist</option>
-            <option value="teacher_assistant">Teacher Assistant</option>
-            <option value="substitute_teacher">Substitute Teacher</option>
-            <option value="bookkeeper">Bookkeeper</option>
-            <option value="human_resources_assistant">Human Resources Assistant</option>
-            <option value="it_help_desk_technician">IT Help Desk Technician</option>
-            <option value="cybersecurity_analyst">Cybersecurity Analyst</option>
-          </select>
-        </label>
-        <button class="button primary" id="analyzeBtn" type="button">Get My Score</button>
+        <button class="button primary" id="analyzeBtn" type="button">Analyze Job Fit</button>
         <button class="button ghost" id="clearBtn" type="button">Clear</button>
       </div>
     </section>
@@ -390,7 +334,7 @@
     <p>GET ME PAST ATS — built to help regular people stop applying blind.</p>
   </footer>
 
-  <script type="module" src="app.js?v=v6-job-targeting-engine"></script>
+  <script type="module" src="app.js?v=auto-job-detection-engine-v1"></script>
   <script>
     // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {

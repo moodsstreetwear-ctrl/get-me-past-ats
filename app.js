@@ -1,6 +1,6 @@
 // GET ME PAST ATS
 // Full report logic: diagnose first, then write only from proven resume evidence.
-window.GMPT_APP_VERSION = "v6-job-targeting-engine";
+window.GMPT_APP_VERSION = "auto-job-detection-engine-v1";
 
 const APP_VALUES_AND_CONSTRAINTS = {
   noPartialFamilyUpdates: true,
@@ -10,7 +10,9 @@ const APP_VALUES_AND_CONSTRAINTS = {
   separateAtsFitFromRecruiterFit: true,
   rankApplicationPriority: true,
   showFastestPathToInterviews: true,
-  rule: "When a feature improves resume coaching, it must cover every current job family, avoid generic fallback wording, separate keyword match from recruiter proof, and rank whether the job is worth the next application."
+  autoDetectJobTypeFromDescription: true,
+  noUserDropdownRequired: true,
+  rule: "When a feature improves resume coaching, it must cover every current job family, avoid generic fallback wording, separate keyword match from recruiter proof, and rank whether the job is worth the next application, and never require the user to pick the job category first."
 };
 
 const STOP_WORDS = new Set([
@@ -91,6 +93,7 @@ const FAMILY_LABELS = {
   customer_service: "Customer Service",
   office: "Office / Administrative",
   driving: "Driving / CDL",
+  field_service: "Field Service / Route Work",
   security: "Security",
   cleaning: "Cleaning",
   food_service: "Food Service",
@@ -262,6 +265,19 @@ const FAMILY_TERMS = {
     term("networking", ["network", "routers", "switches"], "medium"),
     term("cybersecurity", ["security analyst", "SOC", "SIEM"], "medium")
   ],
+  field_service: [
+    term("route schedule", ["daily route", "assigned route", "route-based", "assigned territory", "service route"], "high"),
+    term("customer-site work", ["customer homes", "customer businesses", "customer locations", "inside customer homes", "inside customers homes", "homes and businesses"], "high"),
+    term("service documentation", ["service notes", "daily service reports", "service paperwork", "handheld device", "document completed stops", "job notes", "work order notes"], "high"),
+    term("valid driver eligibility", ["valid driver's license", "valid driver license", "driver's license", "driver license", "mvr", "driving record"], "high"),
+    term("field inspections", ["property inspection", "inspect interior", "inspect exterior", "inspection findings", "inspect customer property"], "medium"),
+    term("ladders and tight spaces", ["ladders", "crawl spaces", "attics", "confined spaces", "rooftops", "work at heights"], "medium"),
+    term("hand tools", ["hand tools", "power tools", "basic tools"], "medium"),
+    term("installation work", ["install", "installed", "installation", "residential wiring", "outlets", "switches", "fixtures", "low voltage", "alarm", "camera"], "medium"),
+    term("dispatch updates", ["dispatch", "arrival", "departures", "delays", "arrival and departure"], "medium"),
+    term("PPE", ["ppe", "personal protective equipment", "respirator", "osha-compliant respirator"], "medium"),
+    term("outdoor weather work", ["outdoor", "outdoors", "weather conditions", "heat", "rain"], "soft")
+  ],
   healthcare_admin: [
     term("medical billing", ["billing", "claims", "insurance"], "high"),
     term("medical coding", ["coding", "CPT", "ICD"], "high"),
@@ -284,6 +300,7 @@ const RELATED_ROLES = {
   customer_service: ["Customer Service Representative", "Call Center Representative", "Retail Associate", "Front Desk Agent"],
   office: ["Office Assistant", "Data Entry Clerk", "Administrative Assistant", "Receptionist"],
   driving: ["Delivery Driver", "Truck Driver", "Route Driver", "Driver Helper"],
+  field_service: ["Pest Control Trainee", "Cable Installer Trainee", "Route Service Technician", "Field Service Technician"],
   security: ["Security Officer", "Access Control Officer", "Gate Guard"],
   cleaning: ["Janitor", "Housekeeper", "Custodian"],
   food_service: ["Cook", "Server", "Food Service Worker"],
@@ -456,17 +473,17 @@ function getSelectedJobType(jobType) {
   return JOB_TYPES[jobType] || JOB_TYPES.general;
 }
 
-function buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms }) {
+function buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, autoDetected = false }) {
   const selectedLabel = selected.label;
   const jobFamilyLabel = FAMILY_LABELS[jobFamily.family] || "another job type";
   const selectedFamilyLabel = FAMILY_LABELS[selectedFamily] || selectedLabel;
 
-  if (selectedFamily !== "general" && jobFamily.family !== "general" && selectedFamily !== jobFamily.family && jobFamily.score >= 7) {
+  if (!autoDetected && selectedFamily !== "general" && jobFamily.family !== "general" && selectedFamily !== jobFamily.family && jobFamily.score >= 7) {
     return {
       category: "wrong_job_type",
       title: "Possible Wrong Job Type Selected",
-      message: `You selected ${selectedLabel}, but this job post reads closer to ${jobFamilyLabel}. The report is stopping the rewrite so the resume does not get forced into the wrong category.`,
-      direction: `Switch the job type to ${jobFamilyLabel}, then scan again before using resume wording.`,
+      message: `The chosen job type does not match this job post. The report is stopping the rewrite so the resume does not get forced into the wrong category.`,
+      direction: `Review the detected job type and scan again with a clearer job description before using resume wording.`,
       scoreLabel: "Wrong job type selected"
     };
   }
@@ -656,6 +673,24 @@ const FAMILY_WORDING_BLUEPRINTS = {
       "HVAC": { summary: "supporting HVAC-related maintenance", skill: "HVAC maintenance support", bullet: "Supported HVAC-related maintenance by checking heating, cooling, or air-conditioning issues within assigned duties." },
       "hand and power tools": { summary: "using hand and power tools", skill: "hand and power tools", bullet: "Used hand and power tools safely to complete maintenance, repair, installation, or service tasks." },
       "work orders": { summary: "responding to work orders and service requests", skill: "work orders", bullet: "Completed work orders or service requests while documenting issues and work performed." }
+    }
+  },
+  field_service: {
+    title: "Field Service Worker",
+    summaryLead: "with route-based customer-site experience",
+    skillLead: "Skilled in",
+    items: {
+      "route schedule": { summary: "following assigned route schedules", skill: "route schedule reliability", bullet: "Completed assigned route stops while tracking timing, service needs, and customer location details." },
+      "customer-site work": { summary: "working at customer homes or businesses", skill: "customer-site work", bullet: "Worked at customer homes or businesses while keeping service interactions professional and work areas organized." },
+      "service documentation": { summary: "entering service notes or route updates", skill: "service documentation", bullet: "Updated handheld notes, service reports, work orders, or completed-stop records accurately after assigned work." },
+      "valid driver eligibility": { summary: "supporting work that requires safe driving and route reliability", skill: "safe driving and route reliability", bullet: "Maintained route reliability while following safe driving, customer-stop, and supervisor communication expectations." },
+      "field inspections": { summary: "checking customer property, equipment, or service areas", skill: "field inspections", bullet: "Checked assigned customer areas, equipment, or service conditions and reported findings through the required process." },
+      "ladders and tight spaces": { summary: "working around ladders, crawl spaces, attics, or confined areas", skill: "ladders and tight-space work", bullet: "Worked around ladders, crawl spaces, attics, rooftops, or confined areas only where assigned and safe to do so." },
+      "hand tools": { summary: "using hand tools during assigned service tasks", skill: "hand tools", bullet: "Used hand tools to complete assigned field, installation, service, or repair tasks." },
+      "installation work": { summary: "supporting installation tasks at homes, businesses, or jobsites", skill: "installation support", bullet: "Supported installation tasks using tools, work instructions, and customer-site safety expectations." },
+      "dispatch updates": { summary: "communicating arrival, delay, or completion updates", skill: "dispatch updates", bullet: "Communicated arrival, delay, completion, or service updates to supervisors, dispatch, or customers." },
+      "PPE": { summary: "using PPE during assigned work", skill: "PPE use", bullet: "Used required PPE during assigned field, service, or worksite tasks." },
+      "outdoor weather work": { summary: "working outdoors in changing weather", skill: "outdoor work", bullet: "Completed assigned work outdoors and adjusted to heat, rain, or changing weather conditions." }
     }
   },
   electrical: {
@@ -878,6 +913,7 @@ const FAMILY_PROOF_GAPS = {
   customer_service: ["phone support", "email support", "CRM", "customer accounts", "complaint resolution", "POS", "returns", "service notes"],
   office: ["data entry", "records", "filing", "scheduling", "Microsoft Office", "Excel", "email", "phone calls"],
   driving: ["CDL", "DOT", "pre-trip inspection", "post-trip inspection", "route planning", "dispatch communication", "delivery paperwork", "safe driving"],
+  field_service: ["route schedule", "customer homes/businesses", "service documentation", "valid driver eligibility", "hand tools", "ladders", "confined spaces", "PPE", "field inspections"],
   security: ["security experience", "patrols", "access control", "visitor screening", "incident reports", "emergency response", "surveillance cameras", "security procedures", "guard card/security license if required"],
   cleaning: ["cleaning", "sanitation", "trash removal", "restocking supplies", "floor care", "safety procedures"],
   food_service: ["food preparation", "food safety", "sanitation", "orders", "customer service", "cash handling", "stocking"],
@@ -898,6 +934,7 @@ const FAMILY_STRENGTHENING_ADVICE = {
   customer_service: "real customer service duties such as phone support, email support, CRM, accounts, complaints, POS, returns, or service notes",
   office: "real office duties such as data entry, records, scheduling, Microsoft Office, Excel, email, phones, or filing",
   driving: "real CDL, DOT, pre-trip/post-trip inspections, route delivery, dispatch, paperwork, safe driving, or driving experience",
+  field_service: "real route work, customer-site visits, service documentation, valid driver/MVR proof, hand tools, ladders, tight-space work, PPE, or field inspections",
   security: "real security training, guard card/security license if required, patrol experience, access control duties, visitor screening, incident reports, emergency response, surveillance cameras, or security work experience",
   cleaning: "real cleaning, sanitation, trash removal, restocking, floor care, housekeeping, janitorial, or facility support duties",
   food_service: "real food prep, cooking, food safety, sanitation, order handling, stocking, customer service, or restaurant experience",
@@ -1089,6 +1126,21 @@ const REAL_JOB_SUBTYPE_RULES = [
   subtypeRule("paid_survey_focus_group", "Paid Survey / Focus Group Gig", "Gig / Research Task", "No resume rewrite needed", "This does not look like a stable job. It may not provide steady hours, benefits, or guaranteed income.", [
     ["focus group", 8], ["paid survey", 8], ["surveys", 6], ["product testing", 7], ["feedback", 3], ["participate", 3], ["remote participation", 5], ["no experience required", 2], ["gift card", 5], ["earn", 2]
   ]),
+  subtypeRule("registered_nurse", "Registered Nurse / RN", "Healthcare / Nursing", "RN wording only when active license is proven", "This is a licensed nursing role. Do not use RN, nursing assessment, medication administration, IV therapy, med-surg, ER, ICU, or charge nurse wording unless the license and experience are real.", [
+    ["registered nurse", 9], [" rn ", 8], ["active rn license", 10], ["rn license", 9], ["nursing assessment", 7], ["care plans", 5], ["administer medications", 7], ["iv therapy", 7], ["med-surg", 5], ["icu", 5], ["er", 4], ["acute care", 5], ["bls", 4]
+  ]),
+  subtypeRule("licensed_practical_nurse", "Licensed Practical Nurse / LPN", "Healthcare / Nursing", "LPN wording only when active license is proven", "This is a licensed nursing role. Do not use LPN, medication administration, wound care, injections, or nursing documentation unless the license and training are real.", [
+    ["licensed practical nurse", 9], [" lpn ", 8], ["active lpn license", 10], ["lpn license", 9], ["medication administration", 7], ["wound care", 6], ["nursing documentation", 5], ["physician orders", 4], ["long-term care", 4]
+  ]),
+  subtypeRule("certified_nursing_assistant", "Certified Nursing Assistant / CNA", "Healthcare / Patient Care", "CNA wording only when certification is proven", "This is not RN or LPN work. Do not add medication administration, wound care, IV therapy, or nursing assessment unless licensed and trained.", [
+    ["certified nursing assistant", 9], [" cna ", 8], ["cna certification", 9], ["adls", 6], ["activities of daily living", 6], ["bathing", 4], ["dressing", 4], ["feeding", 4], ["transfers", 5], ["vital signs", 5], ["resident care", 5], ["charting", 4]
+  ]),
+  subtypeRule("patient_care_technician", "Patient Care Technician / PCT", "Healthcare / Patient Care", "PCT wording only when patient-care proof is shown", "This is bedside patient-support work. Do not add EKG, phlebotomy, blood draws, or clinical procedures unless the resume proves them.", [
+    ["patient care technician", 9], [" pct ", 8], ["vital signs", 5], ["patient transfers", 5], ["mobility assistance", 4], ["ekg", 6], ["phlebotomy", 6], ["specimen", 4], ["hospital unit", 4], ["patient care", 4]
+  ]),
+  subtypeRule("medical_assistant_clinic", "Medical Assistant / Clinic Support", "Healthcare / Clinic Support", "Medical assistant wording only when clinic proof is shown", "This is clinic support, not nursing. Do not call the user a nurse or claim independent clinical assessment unless licensed.", [
+    ["medical assistant", 9], ["rooming patients", 6], ["clinic", 3], ["vitals", 5], ["ehr", 4], ["emr", 4], ["injections", 5], ["specimen collection", 5], ["provider support", 4], ["front and back office", 4]
+  ]),
   subtypeRule("certified_classroom_teacher", "Certified Classroom Teacher / K-12 Teacher", "Education / Teaching", "Certified teacher wording", "This is not Teacher Assistant work. It usually requires a bachelor's degree and state teaching certification or alternative certification eligibility.", [
     ["state teaching certification", 8], ["bachelor", 5], ["alternative certification", 6], ["classroom", 3], ["lesson planning", 4], ["students", 3], ["technology-driven classrooms", 4], ["professional development", 3], ["equity", 3], ["inclusion", 3], ["educational leadership", 3]
   ]),
@@ -1151,14 +1203,22 @@ function scoreSubtypeRule(jobNorm, rule) {
 function fallbackRealJobType(jobFamily, selected) {
   const family = jobFamily.family && jobFamily.family !== "general" ? jobFamily.family : selected.family;
   const familyLabel = FAMILY_LABELS[family] || selected.label || "General job";
+  const clueCount = (jobFamily.matched || []).length;
+  let confidence = "Low";
+  if (jobFamily.score >= 10 || clueCount >= 5) confidence = "High";
+  else if (jobFamily.score >= 4 || clueCount >= 3) confidence = "Medium";
+
+  const isClearFamily = family !== "general" && confidence !== "Low";
   return {
     id: "broad_family",
-    label: `${familyLabel} role`,
-    family: familyLabel,
-    resumeMode: `${familyLabel} wording`,
-    watchOut: "This job post does not have enough subtype clues for a precise label. Use the hard requirements and proof gaps before copying wording.",
-    confidence: "Low",
-    confidenceScore: 0,
+    label: isClearFamily ? `${familyLabel} role` : "Unclear job type",
+    family: isClearFamily ? familyLabel : "Unclear / needs review",
+    resumeMode: isClearFamily ? `${familyLabel} wording` : "No job-specific wording until the post is clearer",
+    watchOut: isClearFamily
+      ? `No major job-type warning. This reads like a ${familyLabel} role. Do not add advanced tools, licenses, certifications, supervisor titles, or specialty tasks unless the resume proves them.`
+      : "This job post does not have enough clear duties to trust a resume rewrite. Look for the real tasks, tools, license, schedule, and worksite before applying.",
+    confidence,
+    confidenceScore: jobFamily.score || 0,
     clues: jobFamily.matched || [],
     alternatives: []
   };
@@ -1197,21 +1257,61 @@ function detectRealJobType(jobText, selected, jobFamily) {
 }
 
 function buildSelectedTypeWarning(realJobType, selected) {
-  if (!realJobType || realJobType.id === "broad_family") return "";
-  const selectedLabel = normalize(selected.label || "");
-  const realLabel = normalize(realJobType.label || "");
-  const selectedFamilyLabel = normalize(FAMILY_LABELS[selected.family] || "");
-  const realFamily = normalize(realJobType.family || "");
-  if (selected.family === "general") return "";
-  if (realLabel.includes(selectedLabel) || selectedLabel.includes(realLabel)) return "";
-  if (selectedFamilyLabel && realFamily.includes(selectedFamilyLabel)) return "";
-  return `You selected ${selected.label}, but the duties read closer to ${realJobType.label}. Use the detected job type before trusting resume wording.`;
+  return "";
+}
+
+function internalFamilyFromRealJobType(realJobType, jobFamily) {
+  const id = realJobType?.id || "";
+  const map = {
+    pest_control_technician: "field_service",
+    cable_installation_technician: "field_service",
+    security_installation_technician: "field_service",
+    commercial_kitchen_equipment_tech: "field_service",
+    paid_survey_focus_group: "general",
+    registered_nurse: "healthcare",
+    licensed_practical_nurse: "healthcare",
+    certified_nursing_assistant: "healthcare",
+    patient_care_technician: "healthcare",
+    medical_assistant_clinic: "healthcare",
+    certified_classroom_teacher: "education",
+    early_childhood_teacher: "education",
+    sql_server_dba: "it",
+    cleared_python_software_engineer: "it",
+    dotnet_web_developer: "it",
+    qa_automation_developer: "it",
+    cybersecurity_grc_analyst: "it",
+    industrial_automation_scada: "it",
+    auto_body_collision_tech: "diesel",
+    cdl_tanker_hazmat_driver: "driving",
+    cdl_local_dedicated_driver: "driving",
+    railcar_switchman: "driving",
+    industrial_shipping_loader: "warehouse"
+  };
+  return map[id] || (jobFamily?.family && jobFamily.family !== "general" ? jobFamily.family : "general");
+}
+
+function selectedFromAutoDetectedJob(realJobType, autoFamily) {
+  const label = realJobType?.label && realJobType.label !== "Unclear job type"
+    ? realJobType.label
+    : (FAMILY_LABELS[autoFamily] ? `${FAMILY_LABELS[autoFamily]} role` : "Detected job");
+  return { label, family: autoFamily || "general" };
+}
+
+function isMinorConfirmRequirement(req) {
+  return ["physical", "schedule", "outdoor", "age", "education", "work_authorization"].includes(req?.gate);
+}
+
+function splitRequirementSeverity(reqs = []) {
+  const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
+  const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
+  const minorConfirm = unmetConfirm.filter(isMinorConfirmRequirement);
+  const seriousConfirm = unmetConfirm.filter(item => !isMinorConfirmRequirement(item));
+  return { unmetHard, unmetConfirm, minorConfirm, seriousConfirm };
 }
 
 function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType }) {
   const reqs = smartFixes?.hardRequirements || [];
-  const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
-  const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
+  const { unmetHard, unmetConfirm, minorConfirm, seriousConfirm } = splitRequirementSeverity(reqs);
   const strictBlockerGates = new Set([
     "cdl_a", "tanker", "hazmat", "license_restrictions", "manual_transmission", "rn_license", "lpn_license", "cna",
     "teaching_certification", "bachelors", "epa_universal", "food_equipment_certificate", "ts_sci_poly", "senior_sql",
@@ -1249,16 +1349,17 @@ function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, 
       decision: "do_not_apply_yet",
       label: "Do not apply with this scan yet",
       tone: "danger",
-      reason: "The selected job type does not match what the job post appears to be.",
+      reason: "The detected job type does not line up cleanly with the resume proof yet.",
       blockers: [],
       confirmations: unmetConfirm,
-      nextStep: "Switch the job type or use General / Any Job, then scan again before copying wording."
+      nextStep: "Review the detected job type and rerun the scan with a clearer job description before copying wording."
     };
   }
 
   const job = normalize(jobText || "");
-  const trainingAllowed = hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days"]);
-  if (diagnosis.category === "weak_evidence" && trainingAllowed) {
+  const trainingAllowed = hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days", "after hire", "technical training", "training and certification", "certification after hire", "certification required after hire"]);
+  const trainableSubtype = ["pest_control_technician", "cable_installation_technician", "security_installation_technician"].includes(realJobType?.id);
+  if (diagnosis.category === "weak_evidence" && (trainingAllowed || trainableSubtype)) {
     return {
       decision: "apply_if_true",
       label: "Apply only if these are true",
@@ -1282,15 +1383,29 @@ function buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, 
     };
   }
 
-  if (unmetHard.length || unmetConfirm.length) {
+  if (!unmetHard.length && !seriousConfirm.length && minorConfirm.length && ["strong_match", "good_match"].includes(diagnosis.category)) {
+    return {
+      decision: "apply_now",
+      label: "Apply now",
+      tone: "good",
+      reason: "The resume proves the main job duties. Only minor items such as schedule, basic physical ability, age, or diploma wording need confirmation.",
+      blockers: [],
+      confirmations: minorConfirm,
+      nextStep: "Apply today after confirming those minor items. Add them to the resume only if they are true."
+    };
+  }
+
+  if (unmetHard.length || seriousConfirm.length || minorConfirm.length) {
     return {
       decision: "apply_if_true",
       label: "Apply only if these are true",
       tone: "warning",
-      reason: "The job mentions requirements that are not clearly shown in the resume. Some may be easy to confirm, but they matter before applying.",
+      reason: seriousConfirm.length || unmetHard.length
+        ? "The job mentions gates that may affect hiring before ATS wording matters."
+        : "The job mentions minor requirements that are not clearly shown in the resume yet.",
       blockers: unmetHard,
-      confirmations: unmetConfirm,
-      nextStep: "Confirm the items below. Add them to the resume only if you honestly have them."
+      confirmations: [...seriousConfirm, ...minorConfirm],
+      nextStep: "Confirm the items below. Add them to the resume only if your real work, license, schedule, or physical ability proves them."
     };
   }
 
@@ -1347,6 +1462,7 @@ function safeResumeTitle(resumeText, family, selectedLabel, diagnosisCategory) {
   }
   if (family === "office") return resume.includes("office assistant") ? "Office assistant" : "Office support worker";
   if (family === "driving") return resume.includes("cdl") ? "CDL driver" : "Delivery driver";
+  if (family === "field_service") return "Route-based field service worker";
   if (family === "warehouse") return "Warehouse worker";
   if (family === "manufacturing") return "Manufacturing worker";
   if (family === "healthcare") return helperWords ? "Healthcare support worker" : "Patient care worker";
@@ -1593,11 +1709,11 @@ function buildOutput(analysis) {
     return {
       summaryHeading: "Wrong job type warning",
       bulletHeading: "Switch before using wording",
-      summary: `No resume rewrite generated. You selected ${selected.label}, but the job post matches ${jobFamilyLabel}. The app is stopping the rewrite because the selected job type would produce the wrong advice.`,
+      summary: `No resume rewrite generated. The detected job type does not match enough resume proof for ${jobFamilyLabel}. The app is stopping the rewrite because the current detected job target would produce the wrong advice.`,
       bullets: [
-        `Change the job type to ${jobFamilyLabel} or the closest matching option in the dropdown.`,
+        `Review the detected job type and rerun the scan with a clearer job description if needed.`,
         "Run the scan again before copying any summary or resume bullets.",
-        `Do not force this resume into ${selected.label} if the job post is actually ${jobFamilyLabel}.`
+        `Do not force resume wording into a job type the resume does not prove.`
       ]
     };
   }
@@ -1819,13 +1935,12 @@ function clampV6Score(value) {
 
 function v6TrainingAllowed(jobText) {
   const job = normalize(jobText || "");
-  return hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days", "trainee", "apprentice"]);
+  return hasJobPhrase(job, ["no experience required", "we'll train", "we will train", "we teach", "training provided", "paid training", "company paid", "within 90 days", "after hire", "technical training", "training and certification", "certification after hire", "certification required after hire", "trainee", "apprentice"]);
 }
 
 function v6GetReqBuckets(smartFixes) {
   const reqs = smartFixes?.hardRequirements || [];
-  const unmetHard = reqs.filter(item => item.level === "hard" && !item.met);
-  const unmetConfirm = reqs.filter(item => item.level !== "hard" && !item.met);
+  const { unmetHard, unmetConfirm, minorConfirm, seriousConfirm } = splitRequirementSeverity(reqs);
   const strictBlockers = unmetHard.filter(item => V6_STRICT_BLOCKER_GATES.has(item.gate));
   const licenseGates = reqs.filter(item => V6_LICENSE_OR_GATE_WORDS.test(item.label));
   return { reqs, unmetHard, unmetConfirm, strictBlockers, licenseGates };
@@ -1889,11 +2004,13 @@ function buildApplicationPriority({ applyDecision, atsFit, recruiterFit, proofIm
   if (buckets.strictBlockers.length || applyDecision?.decision === "do_not_apply_yet") {
     return { grade: "F", label: "Priority F — Skip for now", tone: "danger", reason: "A hard credential, license, clearance, endorsement, degree, or advanced-skill gate may block the application before ATS wording matters.", nextMove: "Apply to closer roles first or get the missing license, endorsement, clearance, degree, certification, or exact experience." };
   }
+  const reqSeverity = splitRequirementSeverity(smartFixes?.hardRequirements || []);
+  const onlyMinorConfirm = !reqSeverity.unmetHard.length && !reqSeverity.seriousConfirm.length && reqSeverity.minorConfirm.length > 0;
+  if (atsFit >= 75 && recruiterFit >= 70 && (diagnosis?.category === "strong_match" || diagnosis?.category === "good_match" || applyDecision?.decision === "apply_now") && (!buckets.unmetHard.length && (onlyMinorConfirm || !buckets.unmetConfirm.length))) {
+    return { grade: "A", label: "Priority A — Apply today", tone: "good", reason: onlyMinorConfirm ? "The resume proves the main job. Remaining items are minor confirmations, not blockers." : "The resume has both ATS keyword fit and enough recruiter proof to be worth a fast application.", nextMove: "Apply today after adding truthful numbers, tools, equipment, shifts, route details, or worksite details." };
+  }
   if (applyDecision?.decision === "apply_if_true" || buckets.unmetHard.length || buckets.unmetConfirm.length) {
     return { grade: "C", label: "Priority C — Apply only if gate is true", tone: "warning", reason: "The job has requirements that are not clearly shown in the resume yet.", nextMove: "Confirm the requirement, then add it only where your real proof supports it." };
-  }
-  if (atsFit >= 75 && recruiterFit >= 70 && (diagnosis?.category === "strong_match" || diagnosis?.category === "good_match" || applyDecision?.decision === "apply_now")) {
-    return { grade: "A", label: "Priority A — Apply today", tone: "good", reason: "The resume has both ATS keyword fit and enough recruiter proof to be worth a fast application.", nextMove: "Apply today after adding truthful numbers, tools, equipment, shifts, route details, or worksite details." };
   }
   if (atsFit >= 55 && recruiterFit >= 50) {
     return { grade: "B", label: "Priority B — Apply after fixing wording", tone: "caution", reason: "This job is reachable, but the resume needs stronger proof wording before applying.", nextMove: "Use the proof coach and resume-ready wording, then apply." };
@@ -1945,22 +2062,22 @@ function buildV6Strategy({ diagnosis, keywordData, smartFixes, resumeFamily, job
   return { atsFit, recruiterFit, proofImpact };
 }
 
-function analyzeResume(resumeText, jobText, jobType) {
-  const selected = getSelectedJobType(jobType);
-  const selectedFamily = selected.family;
+function analyzeResume(resumeText, jobText) {
+  const baseSelected = JOB_TYPES.general;
   const jobFamily = detectFamily(jobText);
   const resumeFamily = detectFamily(resumeText);
-  const targetFamily = jobFamily.family !== "general" ? jobFamily.family : selectedFamily;
-  const keywordData = analyzeKeywords(resumeText, jobText, targetFamily === "general" ? selectedFamily : targetFamily);
-  const evidenceFamily = selectedFamily === "general" ? targetFamily : selectedFamily;
-  const evidenceTerms = getProofTerms(resumeText, evidenceFamily).filter(termName => {
+  const realJobType = detectRealJobType(jobText, baseSelected, jobFamily);
+  const selectedFamily = internalFamilyFromRealJobType(realJobType, jobFamily);
+  const selected = selectedFromAutoDetectedJob(realJobType, selectedFamily);
+  const targetFamily = selectedFamily || (jobFamily.family !== "general" ? jobFamily.family : "general");
+  const keywordFamily = targetFamily === "general" && jobFamily.family !== "general" ? jobFamily.family : targetFamily;
+  const keywordData = analyzeKeywords(resumeText, jobText, keywordFamily);
+  const evidenceTerms = getProofTerms(resumeText, keywordFamily).filter(termName => {
     const activeNames = keywordData.activeTerms.map(item => item.term);
     return activeNames.includes(termName) || keywordData.score >= 60;
   });
-  const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms });
-  const targetForFixes = targetFamily === "general" ? selectedFamily : targetFamily;
-  const smartFixes = buildSmartFixes(resumeText, jobText, targetForFixes, selected, keywordData);
-  const realJobType = detectRealJobType(jobText, selected, jobFamily);
+  const diagnosis = buildDiagnosis({ selected, selectedFamily, jobFamily, resumeFamily, keywordData, evidenceTerms, autoDetected: true });
+  const smartFixes = buildSmartFixes(resumeText, jobText, keywordFamily, selected, keywordData);
   const applyDecision = buildApplyDecision({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType });
   const v6Base = buildV6Strategy({ diagnosis, keywordData, smartFixes, resumeFamily, jobFamily, jobText, realJobType, selected, selectedFamily, evidenceTerms });
   const applicationPriority = buildApplicationPriority({ applyDecision, atsFit: v6Base.atsFit, recruiterFit: v6Base.recruiterFit, proofImpact: v6Base.proofImpact, smartFixes, diagnosis });
@@ -2050,7 +2167,7 @@ function renderKeywordGroup(container, title, items, note) {
 function renderRealJobType(container, analysis) {
   if (!container) return;
   const info = analysis.realJobType || fallbackRealJobType(analysis.jobFamily, analysis.selected);
-  const selectedWarning = buildSelectedTypeWarning(info, analysis.selected);
+  const selectedWarning = "";
   const confidenceColors = {
     High: { border: "rgba(167,255,206,0.45)", bg: "rgba(167,255,206,0.10)", title: "#a7ffce" },
     Medium: { border: "rgba(255,211,105,0.45)", bg: "rgba(255,211,105,0.10)", title: "#ffd369" },
@@ -2082,7 +2199,7 @@ function renderDiagnosis(container, analysis) {
   if (!container) return;
   const proof = analysis.evidenceTerms.length
     ? `Resume proof found: ${joinEnglish(analysis.evidenceTerms.slice(0, 7))}.`
-    : "Resume proof found: limited direct proof for the selected job type.";
+    : "Resume proof found: limited direct proof for the detected job type.";
   const jobRead = analysis.jobFamily.family !== "general"
     ? `Job post reads closest to: ${FAMILY_LABELS[analysis.jobFamily.family]}.`
     : "Job post category: not clear enough to lock onto one field.";
@@ -2643,7 +2760,7 @@ function buildRedFlags(resumeText, jobText, analysis) {
     flags.push(`<strong>Apply decision:</strong> ${escapeHTML(analysis.applyDecision.label)} — ${escapeHTML(analysis.applyDecision.reason)}`);
   }
   if (analysis.diagnosis.category === "wrong_job_type") {
-    flags.push(`<strong>Wrong job type selected:</strong> switch the dropdown before copying any wording.`);
+    flags.push(`<strong>Job type mismatch:</strong> the detected job does not match enough resume proof yet.`);
   }
   if (analysis.diagnosis.category === "weak_evidence") {
     flags.push(`<strong>Weak evidence:</strong> this resume does not prove enough direct experience for this job-specific rewrite.`);
@@ -2685,7 +2802,7 @@ function getScoreMessage(analysis) {
     return `${analysis.score}% match. Be careful: this looks like gig work or a low-quality posting.`;
   }
   if (analysis.diagnosis.category === "wrong_job_type") {
-    return `${analysis.score}% keyword overlap, but the selected job type is wrong. Fix the dropdown before using the report.`;
+    return `${analysis.score}% keyword overlap, but the detected job target needs review. Review the detected job type before using the report.`;
   }
   if (analysis.diagnosis.category === "weak_evidence") {
     return `${analysis.score}% match. Low proof means direction only, not a job-specific rewrite.`;
@@ -2711,22 +2828,20 @@ function setRewriteHeadings(output) {
 function analyzeAndRender() {
   const resumeEl = $("resumeText");
   const jobEl = $("jobText");
-  const jobTypeEl = $("jobType");
-  if (!resumeEl || !jobEl || !jobTypeEl) {
+  if (!resumeEl || !jobEl) {
     alert("The resume checker is still loading. Refresh the page and try again.");
     return;
   }
 
   const resumeText = resumeEl.value.trim();
   const jobText = jobEl.value.trim();
-  const jobType = jobTypeEl.value;
 
   if (!resumeText || !jobText) {
     alert("Paste both your resume and the job description first.");
     return;
   }
 
-  const analysis = analyzeResume(resumeText, jobText, jobType);
+  const analysis = analyzeResume(resumeText, jobText);
   const resultsEl = $("results");
   const rewriteEl = $("rewrite");
   if (resultsEl) resultsEl.hidden = false;
