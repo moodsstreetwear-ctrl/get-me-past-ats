@@ -30,7 +30,7 @@ textarea { min-height: 220px; }
 .report-details-grid > article:nth-of-type(1), .report-details-grid > article:nth-of-type(4), .report-details-grid > article:nth-of-type(5), .report-details-grid > article:nth-of-type(6) { grid-column: 1 / -1; }
 .gmpt-hidden { display: none !important; }
 .simple-result-card h4, .decision-card h4 { margin: 0 0 8px; font-size: 1.25rem; letter-spacing: -0.02em; }
-.simple-result-card p, .decision-card p, .empty-proof, .simple-help, .better-match-card p { color: var(--muted); line-height: 1.55; margin: 0; }
+.simple-result-card p, .decision-card p, .empty-proof, .simple-help, .better-match-card p, .score-mini, .strength-card p, .blocker-detail p, .truth-note { color: var(--muted); line-height: 1.55; margin: 0; }
 .decision-card { border-radius: 16px; padding: 14px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
 .decision-card.good { border-color: rgba(167,255,206,0.45); background: rgba(167,255,206,0.10); }
 .decision-card.good h4 { color: #a7ffce; }
@@ -38,15 +38,27 @@ textarea { min-height: 220px; }
 .decision-card.caution h4 { color: #ffd369; }
 .decision-card.danger { border-color: rgba(255,92,122,0.55); background: rgba(255,92,122,0.12); }
 .decision-card.danger h4 { color: #ffc2cc; }
-.blocker-list { display: grid; gap: 10px; }
+.score-mini { display: grid; gap: 6px; margin-top: 14px; font-size: 0.92rem; }
+.score-mini span { display: block; }
+.score-panel.score-low .score-bar span { background: linear-gradient(90deg, #ff5c7a, #ff8a5c); }
+.score-panel.score-mid .score-bar span { background: linear-gradient(90deg, #ff5c7a, #ffd369, #00d4a6); }
+.score-panel.score-high .score-bar span { background: linear-gradient(90deg, #7c5cff, #00d4a6); }
+.blocker-list, .blocker-card-list, .strength-groups, .match-groups { display: grid; gap: 12px; }
 .blocker-label { margin: 2px 0 0; font-weight: 950; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.76rem; }
 .blocker-label.critical { color: #ffc2cc; }
 .blocker-label.important { color: #ffd369; }
 .chip.blocker { justify-self: start; border-radius: 14px; }
 .chip.blocker.critical { background: rgba(255,92,122,0.12); color: #ffc2cc; border-color: rgba(255,92,122,0.28); }
 .chip.blocker.important { background: rgba(255,211,105,0.11); color: #ffe0a3; border-color: rgba(255,211,105,0.24); }
+.blocker-detail, .strength-card, .match-group { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.04); padding: 14px; }
+.blocker-detail.critical { border-color: rgba(255,92,122,0.38); background: rgba(255,92,122,0.10); }
+.blocker-detail.important { border-color: rgba(255,211,105,0.30); background: rgba(255,211,105,0.08); }
+.blocker-detail strong, .strength-card strong, .match-group h4 { display: block; margin: 0 0 6px; font-weight: 950; color: var(--text); }
+.blocker-detail.critical strong { color: #ffc2cc; }
+.blocker-detail.important strong { color: #ffe0a3; }
+.strength-card > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .better-match-list { display: grid; gap: 10px; }
-.better-match-card { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.04); padding: 13px 14px; }
+.better-match-card { border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,0.04); padding: 13px 14px; margin-top: 8px; }
 .better-match-card strong { display: flex; justify-content: space-between; gap: 12px; color: var(--text); }
 .better-match-card strong span { color: var(--accent-2); white-space: nowrap; }
 #rewrite { margin-top: 8px; }
@@ -55,7 +67,8 @@ textarea { min-height: 220px; }
 #rewrite .section-heading p:last-child { font-size: 0; }
 #rewrite .section-heading p:last-child::after { content: "Next feature: generate a full ATS-ready resume using only proven experience."; font-size: 1rem; }
 .rewrite-grid { display: none; }
-#rewrite::after { content: "Generate Resume — Coming Next"; display: flex; justify-content: center; align-items: center; width: 100%; border-radius: 16px; padding: 16px 18px; background: linear-gradient(135deg, var(--accent), #9e8cff); color: #fff; font-weight: 950; opacity: 0.72; }
+#rewrite::after { content: "Generate Resume — Coming Next"; display: flex; justify-content: center; align-items: center; width: 100%; border-radius: 16px; padding: 16px 18px; background: linear-gradient(135deg, var(--accent), #9e8cff); color: #fff; font-weight: 950; opacity: 0.72; margin-top: 14px; }
+.truth-note { margin-top: 14px; font-size: 0.95rem; }
 .tracker-form { grid-template-columns: 1fr 1fr; }
 .tracker-form button { grid-column: 1 / -1; }
 
