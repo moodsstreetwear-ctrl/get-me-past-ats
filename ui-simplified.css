@@ -1,0 +1,213 @@
+/* UI simplification layer: keeps the same app logic, but makes the page easier to scan. */
+
+body {
+  background: #0b0f17;
+}
+
+.hero {
+  padding-bottom: 42px;
+}
+
+.nav {
+  margin-bottom: 42px;
+}
+
+.hero-grid {
+  grid-template-columns: 1fr;
+  max-width: 940px;
+  text-align: left;
+}
+
+.hero-copy-block {
+  max-width: 860px;
+}
+
+.hero-copy-block h1 {
+  max-width: 780px;
+}
+
+.hero-copy {
+  max-width: 720px;
+}
+
+.preview-card {
+  display: none;
+}
+
+.feature-strip {
+  grid-template-columns: 1fr;
+  max-width: 940px;
+  margin: 0 auto 24px;
+}
+
+.feature-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 18px;
+}
+
+.feature-card h3,
+.feature-card p {
+  margin-bottom: 0;
+}
+
+.feature-card p {
+  grid-column: 2;
+}
+
+.panel {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.input-grid {
+  grid-template-columns: 1fr;
+}
+
+textarea {
+  min-height: 220px;
+}
+
+.results-grid.report-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  max-width: 940px;
+  margin: 0 auto 24px;
+}
+
+.results-grid.report-grid > .panel {
+  margin-bottom: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.score-panel {
+  order: -3;
+}
+
+#applyDecisionOutput,
+#applicationPriorityOutput,
+#fitScoreOutput,
+#diagnosisOutput,
+#jobTypeOutput,
+#fastestPathOutput,
+#keywordProofCoachOutput {
+  min-height: auto;
+}
+
+.copy-box {
+  min-height: auto;
+}
+
+.report-details {
+  grid-column: 1 / -1;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255,255,255,0.035);
+  overflow: hidden;
+}
+
+.report-details > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 18px 22px;
+  font-weight: 900;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.report-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-details > summary::after {
+  content: '+';
+  color: var(--accent-2);
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.report-details[open] > summary::after {
+  content: '−';
+}
+
+.report-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 16px 16px;
+}
+
+.report-details-grid .panel {
+  max-width: none;
+}
+
+#rewrite {
+  margin-top: 8px;
+}
+
+.rewrite-grid {
+  grid-template-columns: 1fr;
+}
+
+.tracker-form {
+  grid-template-columns: 1fr 1fr;
+}
+
+.tracker-form button {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .hero {
+    padding-bottom: 34px;
+  }
+
+  .nav {
+    margin-bottom: 34px;
+  }
+
+  h1 {
+    font-size: clamp(3rem, 17vw, 4.4rem);
+  }
+
+  .hero-proof {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hero-proof span {
+    text-align: center;
+  }
+
+  .feature-card {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-card p {
+    grid-column: auto;
+  }
+
+  .report-details-grid,
+  .tracker-form {
+    grid-template-columns: 1fr;
+  }
+
+  .controls,
+  .tracker-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .controls .button,
+  .tracker-actions .button {
+    width: 100%;
+  }
+}
