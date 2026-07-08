@@ -12,8 +12,8 @@
   const FAMILY_RULES = [
     { id: "it_support", title: "IT Help Desk / Technical Support", proof: ["windows", "password", "ticket", "troubleshoot", "hardware", "printer", "workstation", "network", "technical support", "user support", "microsoft office"], jobs: ["Help Desk Technician", "Desktop Support Technician", "IT Support Specialist", "Computer Support Specialist", "Service Desk Analyst"] },
     { id: "manufacturing", title: "Manufacturing / Production", proof: ["machine", "production", "quality", "safety", "material", "forklift", "assembly", "warehouse", "pallet", "equipment"], jobs: ["Machine Operator", "Production Worker", "Manufacturing Associate", "Assembly Technician", "Material Handler"] },
-    { id: "maintenance", title: "Industrial Maintenance", proof: ["maintenance", "plc", "electrical", "mechanical", "hydraulic", "pneumatic", "schematic", "vfd", "preventive maintenance", "cmms"], jobs: ["Maintenance Technician", "Industrial Maintenance Technician", "Maintenance Helper", "Facilities Technician", "Manufacturing Technician"] },
-    { id: "electrical", title: "Electrical Helper / Apprentice", proof: ["electrical", "wiring", "outlet", "fixture", "conduit", "panel", "breaker", "hand tools", "power tools"], jobs: ["Electrical Helper", "Apprentice Electrician", "Low Voltage Technician", "Residential Electrical Helper", "Maintenance Helper"] },
+    { id: "maintenance", title: "Industrial Maintenance", proof: ["maintenance", "plc", "electrical", "mechanical", "hydraulic", "pneumatic", "schematic", "vfd", "preventive maintenance", "cmms", "conveyor", "motor", "bearing", "gearbox", "sensor"], jobs: ["Maintenance Technician", "Industrial Maintenance Technician", "Maintenance Helper", "Facilities Technician", "Manufacturing Technician"] },
+    { id: "electrical", title: "Electrical Helper / Apprentice", proof: ["electrical", "wiring", "outlet", "fixture", "conduit", "panel", "breaker", "hand tools", "power tools", "multimeter"], jobs: ["Electrical Helper", "Apprentice Electrician", "Low Voltage Technician", "Residential Electrical Helper", "Maintenance Helper"] },
     { id: "driving", title: "Driver / Delivery / CDL", proof: ["cdl", "driver", "delivery", "route", "dot", "pre-trip", "post-trip", "twic", "mvr", "safe driving"], jobs: ["Delivery Driver", "Route Driver", "CDL Trainee", "Warehouse Driver", "Driver Helper"] },
     { id: "retail_service", title: "Retail / Customer Service", proof: ["customer", "cashier", "pos", "sales", "returns", "inventory", "stock", "front desk", "phone", "service"], jobs: ["Customer Service Representative", "Retail Associate", "Front Desk Associate", "Call Center Representative", "Sales Associate"] },
     { id: "admin_office", title: "Office / Administrative Support", proof: ["office", "data entry", "records", "scheduling", "email", "excel", "microsoft", "documents", "filing", "administrative"], jobs: ["Office Assistant", "Administrative Assistant", "Data Entry Clerk", "Records Clerk", "Receptionist"] },
@@ -26,7 +26,7 @@
     "plc", "scada", "wonderware", "aveva", "allen-bradley", "siemens", "vfd", "robot", "schematic",
     "active directory", "windows server", "network", "ticket", "ticketing", "hardware", "software", "password", "user account",
     "years", "experience", "maintenance", "electrical", "mechanical", "hydraulic", "pneumatic", "preventive maintenance",
-    "python", "java", "javascript", "sql", "excel", "quickbooks", "yardi", "sap", "forklift"
+    "python", "java", "javascript", "sql", "excel", "quickbooks", "yardi", "sap", "forklift", "cmms"
   ];
 
   function text(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
@@ -62,37 +62,104 @@
     if (!container) return [];
     return unique([...container.querySelectorAll(".chip, li")].map(item => item.textContent));
   }
-  function getScore() {
+  function getVisibleScore() {
     const raw = parseInt(text($("scoreValue")?.textContent), 10);
     return Number.isFinite(raw) ? raw : 0;
   }
-  function classifyResume(resumeText) {
-    const resume = norm(resumeText);
-    const scored = FAMILY_RULES.map(rule => {
-      const hits = rule.proof.filter(term => resume.includes(term)).length;
-      return { ...rule, hits, score: Math.min(98, 54 + hits * 7) };
-    }).filter(rule => rule.hits > 0).sort((a, b) => b.hits - a.hits || b.score - a.score);
-    return scored.slice(0, 2);
+  function getRawScore() {
+    const el = $("scoreValue");
+    if (!el) return 0;
+    const current = getVisibleScore();
+    const storedRaw = parseInt(el.dataset.rawScore || "", 10);
+    const storedAdjusted = parseInt(el.dataset.adjustedScore || "", 10);
+    if (Number.isFinite(storedRaw) && Number.isFinite(storedAdjusted) && current === storedAdjusted) return storedRaw;
+    el.dataset.rawScore = String(current);
+    return current;
+  }
+  function classifyText(sourceText) {
+    const source = norm(sourceText);
+    return FAMILY_RULES.map(rule => {
+      const hits = rule.proof.filter(term => source.includes(term));
+      return { ...rule, hits, hitCount: hits.length, score: Math.min(98, 54 + hits.length * 7) };
+    }).filter(rule => rule.hitCount > 0).sort((a, b) => b.hitCount - a.hitCount || b.score - a.score);
+  }
+  function classifyResume(resumeText) { return classifyText(resumeText).slice(0, 2); }
+  function classifyJob() { return classifyText($("jobText")?.value || ""); }
+  function titleFromJobText() {
+    const raw = String($("jobText")?.value || "").split("\n").map(line => text(line)).filter(Boolean);
+    const bad = /responsibilit|qualification|requirement|preferred|location|about|we are|pay|schedule|benefit/i;
+    const candidate = raw.find(line => line.length <= 80 && !bad.test(line) && /technician|operator|manager|specialist|assistant|driver|associate|developer|support|helper|clerk|coordinator|representative/i.test(line));
+    return candidate ? candidate.replace(/^#+\s*/, "") : "";
   }
   function detectJobLabel() {
     const source = $("jobTypeOutput");
     const body = text(source ? source.innerText : "");
     const looksLike = body.match(/This job looks like:\s*(.*?)\s*Job family:/i);
-    if (looksLike && looksLike[1]) return looksLike[1];
+    if (looksLike && looksLike[1] && !/job type detected/i.test(looksLike[1])) return looksLike[1];
     const family = body.match(/Job family:\s*(.*?)\s*Confidence:/i);
-    if (family && family[1]) return family[1];
-    return "Job type detected from the posting";
+    if (family && family[1] && !/job type detected/i.test(family[1])) return family[1];
+    const title = titleFromJobText();
+    if (title) return title;
+    const jobFamily = classifyJob()[0];
+    if (jobFamily) return jobFamily.title;
+    return "Closest matching role";
   }
+  function getAdjustedScore(rawScore) {
+    const resumeFamilies = classifyResume($("resumeText")?.value || "");
+    const jobFamily = classifyJob()[0];
+    if (!jobFamily) return rawScore;
+    const direct = resumeFamilies.find(f => f.id === jobFamily.id);
+    const manufacturing = resumeFamilies.find(f => f.id === "manufacturing");
+    const electrical = resumeFamilies.find(f => f.id === "electrical");
+    let score = rawScore;
+    if (direct) score = Math.max(score, Math.min(88, 44 + direct.hitCount * 7));
+    if (jobFamily.id === "maintenance") {
+      const transferHits = (manufacturing?.hitCount || 0) + (electrical?.hitCount || 0);
+      if (transferHits >= 5) score = Math.max(score, 58);
+      else if (transferHits >= 3) score = Math.max(score, 48);
+    }
+    if (jobFamily.id === "it_support") {
+      const directHits = direct?.hitCount || 0;
+      if (directHits >= 5) score = Math.max(score, 82);
+      else if (directHits >= 3) score = Math.max(score, 66);
+    }
+    if (rawScore < 35 && resumeFamilies.length && score < 45) score = Math.max(score, 42);
+    return Math.min(98, Math.round(score));
+  }
+  function setDisplayedScore(score) {
+    const value = $("scoreValue");
+    const bar = $("scoreBar");
+    if (value) {
+      value.textContent = String(score);
+      value.dataset.adjustedScore = String(score);
+    }
+    if (bar) bar.style.width = `${Math.max(0, Math.min(100, score))}%`;
+  }
+  function matchReason(jobLabel, score) {
+    const resumeFamilies = classifyResume($("resumeText")?.value || "");
+    const jobFamily = classifyJob()[0];
+    const topResume = resumeFamilies[0];
+    if (jobFamily?.id === "maintenance" && topResume?.id === "manufacturing") {
+      return `Manufacturing and equipment experience found, but direct industrial maintenance proof is limited for <strong>${escapeHTML(jobLabel)}</strong>.`;
+    }
+    if (jobFamily && topResume && jobFamily.id !== topResume.id) {
+      return `${escapeHTML(topResume.title)} proof found, but this posting is closer to <strong>${escapeHTML(jobLabel)}</strong>.`;
+    }
+    if (score >= 85) return `Strong match for <strong>${escapeHTML(jobLabel)}</strong>. The resume shows most core proof this job asks for.`;
+    if (score >= 65) return `Fair match for <strong>${escapeHTML(jobLabel)}</strong>. Fix the biggest blockers before applying.`;
+    return `Weak match for <strong>${escapeHTML(jobLabel)}</strong>. This resume is missing core hiring proof for this role.`;
+  }
+  function getScore() { return getAdjustedScore(getRawScore()); }
   function simplifyScore() {
     const title = document.querySelector(".score-panel h3");
     if (title) title.textContent = "Resume Match";
     const message = $("scoreMessage");
     if (!message) return;
-    const score = getScore();
+    const rawScore = getRawScore();
+    const score = getAdjustedScore(rawScore);
+    setDisplayedScore(score);
     const job = detectJobLabel();
-    if (score >= 85) message.innerHTML = `Strong match for <strong>${escapeHTML(job)}</strong>. The resume shows most core proof this job asks for.`;
-    else if (score >= 65) message.innerHTML = `Fair match for <strong>${escapeHTML(job)}</strong>. Fix the biggest blockers before applying.`;
-    else message.innerHTML = `Weak match for <strong>${escapeHTML(job)}</strong>. This resume is missing core hiring proof for this role.`;
+    message.innerHTML = matchReason(job, score);
   }
   function simplifyApplyDecision() {
     const box = $("applyDecisionOutput");
@@ -103,7 +170,7 @@
     const saysCareful = /confirm|careful|only if true/i.test(raw);
     let label = "Apply Now", tone = "good", reason = "Your experience closely matches the primary requirements of this position.";
     if (saysNo || score < 55) { label = "Do Not Apply Yet"; tone = "danger"; reason = "This resume does not currently show enough core proof for this position."; }
-    else if (saysCareful || score < 75) { label = "Apply After Fixes"; tone = "caution"; reason = "The resume has some useful proof, but important hiring evidence is still missing."; }
+    else if (saysCareful || score < 75) { label = "Apply After Fixes"; tone = "caution"; reason = "The resume has related proof, but important hiring evidence is still missing."; }
     box.innerHTML = `<div class="decision-card ${tone}"><h4>${escapeHTML(label)}</h4><p>${escapeHTML(reason)}</p></div>`;
   }
   function buildBlockers() {
@@ -192,55 +259,32 @@
     if (h2) h2.textContent = "Resume Generator";
     if (p) p.textContent = "Next feature: generate a full ATS-ready resume using only proven experience.";
   }
-  function polishReport() {
-    simplifyScore(); simplifyApplyDecision(); simplifyJobType(); simplifyMissingProof(); simplifyProofFound(); simplifyDirection(); simplifyGenerator();
-  }
+  function polishReport() { simplifyScore(); simplifyApplyDecision(); simplifyJobType(); simplifyMissingProof(); simplifyProofFound(); simplifyDirection(); simplifyGenerator(); }
 
   function setupDrawerUX() {
-    const drawer = $("account");
-    const authCard = $("authCard");
+    const drawer = $("account"), authCard = $("authCard");
     if (!drawer || !authCard || drawer.dataset.polished === "true") return;
     drawer.dataset.polished = "true";
-
     const quick = document.createElement("div");
     quick.className = "account-quick-actions";
-    quick.innerHTML = `
-      <button class="account-action-button primary-action" type="button" data-account-open="create">Create Account</button>
-      <button class="account-action-button" type="button" data-account-open="signin">Sign In</button>
-    `;
+    quick.innerHTML = `<button class="account-action-button primary-action" type="button" data-account-open="create">Create Account</button><button class="account-action-button" type="button" data-account-open="signin">Sign In</button>`;
     drawer.insertBefore(quick, drawer.firstChild);
-
     const back = document.createElement("button");
     back.className = "account-back-button";
     back.type = "button";
     back.textContent = "‹ Back to account";
     authCard.insertBefore(back, authCard.firstChild);
-
     function openAccount(mode) {
       drawer.classList.add("account-open");
-      const switchBtn = $("switchAuthBtn");
-      const authTitle = $("authTitle");
-      const authEyebrow = $("authEyebrow");
-      if (mode === "signin" && switchBtn && /sign in/i.test(switchBtn.textContent) && authTitle && /create/i.test(authTitle.textContent)) {
-        switchBtn.click();
-      } else if (mode === "create" && switchBtn && /create/i.test(switchBtn.textContent) && authTitle && /sign in/i.test(authTitle.textContent)) {
-        switchBtn.click();
-      }
+      const switchBtn = $("switchAuthBtn"), authTitle = $("authTitle"), authEyebrow = $("authEyebrow");
+      if (mode === "signin" && switchBtn && /sign in/i.test(switchBtn.textContent) && authTitle && /create/i.test(authTitle.textContent)) switchBtn.click();
+      else if (mode === "create" && switchBtn && /create/i.test(switchBtn.textContent) && authTitle && /sign in/i.test(authTitle.textContent)) switchBtn.click();
       if (authEyebrow) authEyebrow.textContent = mode === "signin" ? "Sign in" : "Create account";
       setTimeout(() => authCard.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }
-
-    quick.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-account-open]");
-      if (!button) return;
-      openAccount(button.dataset.accountOpen);
-    });
+    quick.addEventListener("click", (event) => { const button = event.target.closest("[data-account-open]"); if (button) openAccount(button.dataset.accountOpen); });
     back.addEventListener("click", () => drawer.classList.remove("account-open"));
-
-    document.querySelectorAll("[data-open-account]").forEach(button => {
-      button.addEventListener("click", () => openAccount("create"));
-    });
-
+    document.querySelectorAll("[data-open-account]").forEach(button => button.addEventListener("click", () => openAccount("create")));
     const passwordToggle = $("togglePasswordBtn");
     if (passwordToggle) passwordToggle.textContent = "Show";
   }
