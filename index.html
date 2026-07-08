@@ -6,7 +6,7 @@
   <meta name="description" content="GET ME PAST ATS helps job seekers compare resumes to job posts, detect hard gates, judge recruiter fit, rank application priority, and track applications." />
   <title>GET ME PAST ATS</title>
   <link rel="stylesheet" href="styles.css?v=all-buttons-v1" />
-  <link rel="stylesheet" href="ui-simplified.css?v=ui-simplification-v1" />
+  <link rel="stylesheet" href="ui-simplified.css?v=ui-simplification-v3" />
 </head>
 <body>
   <header class="hero" id="home">
@@ -129,10 +129,10 @@
           <button class="button secondary" type="button" data-open-account>Save My Tracker</button>
         </div>
         <div class="hero-proof" aria-label="Product highlights">
-          <span>Apply decision</span>
-          <span>ATS + recruiter fit</span>
-          <span>Proof gaps</span>
-          <span>No fake experience</span>
+          <span>Resume Match</span>
+          <span>Apply Decision</span>
+          <span>Biggest Blockers</span>
+          <span>Better Jobs</span>
         </div>
       </div>
     </section>
@@ -157,8 +157,8 @@
       <article class="feature-card">
         <span class="feature-icon">3</span>
         <div>
-          <h3>Copy safe wording</h3>
-          <p>Only use wording that your resume already proves.</p>
+          <h3>Build next</h3>
+          <p>Generate a stronger resume after the scanner confirms enough real proof.</p>
         </div>
       </article>
     </section>
@@ -214,7 +214,7 @@
         <div class="copy-box" id="fitScoreOutput">Run a scan to compare ATS fit, recruiter fit, and missing proof by impact.</div>
       </article>
 
-      <details class="report-details">
+      <details class="report-details" open>
         <summary>Show full report details</summary>
         <div class="report-details-grid">
           <article class="panel">
@@ -334,8 +334,8 @@
   </footer>
 
   <script type="module" src="app.js?v=auto-job-detection-engine-v1"></script>
+  <script src="ui-polish.js?v=hiring-coach-v1"></script>
   <script>
-    // Emergency fallback. If the full scanner fails, do not generate generic resume wording.
     (function () {
       function $(id) { return document.getElementById(id); }
       function openMenu() {
