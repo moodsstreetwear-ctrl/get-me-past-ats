@@ -1,143 +1,122 @@
 # GET ME PAST ATS
 
-A simple browser-based MVP that helps job seekers compare their resume against a job description.
+A browser-based resume and job-post analyzer built for people who are tired of applying to jobs and never hearing back.
 
-It gives users:
+The app helps job seekers compare a resume against a real job description, spot ATS keyword gaps, understand whether the resume proves the role well enough for a recruiter, and track applications in one place.
 
-- An ATS-style match score
-- Missing job-post keywords
-- Keywords already showing up in the resume
-- Recruiter red flags
-- Copy-ready summary wording
-- Copy-ready resume bullet ideas
-- A local application tracker
+This is a starter product, not a guarantee of an interview. The goal is to help users stop applying blind and make better decisions before they waste another application.
 
-This is a starter prototype, not a guarantee of an interview. The goal is to help people stop applying blind and make their resume match the role more clearly.
+## What it does now
 
-## How to run it
+- Detects the real job type from the job description
+- Compares ATS keyword fit against human recruiter proof
+- Gives an application priority grade before the user applies
+- Shows hard requirements and possible hiring gates
+- Flags missing proof, weak evidence, and risky wording
+- Gives safe resume summary and bullet wording only when the resume proves it
+- Warns users not to fake licenses, tools, years of experience, or job-specific claims
+- Includes a local account panel for separating saved trackers by user
+- Lets users save applications in the tracker
+- Lets users export tracked applications as a CSV file
 
-For GitHub Pages, upload the files and open the live site link.
+## Core product sections
 
-For local testing, run a small local server because this version uses JavaScript modules:
+### Resume Analyzer
+
+Paste a resume and a full job description. The app detects the job family, checks important terms, separates keyword match from proof strength, and gives a clearer apply decision.
+
+### Real Job Type Detector
+
+The app does not depend on the user choosing a job category first. It reads the job description and tries to identify what the job really is, even when the title is vague or misleading.
+
+### ATS + Recruiter Fit
+
+ATS fit shows keyword coverage. Recruiter fit shows whether the resume actually proves the job well enough for a person to believe it.
+
+### Application Priority Engine
+
+The report helps users decide whether a job should be applied to now, fixed first, confirmed first, or skipped for now.
+
+### Keyword Proof Coach
+
+The coach tells users what a missing keyword would need as real proof before adding it to a resume. The rule is simple: rewrite wording, not reality.
+
+### Application Tracker
+
+Users can save company, role, pay, status, and application date. Tracker data is stored in the browser and can be exported as a CSV file.
+
+## Job families covered
+
+The analyzer includes support for common entry-level, industrial, trade, office, customer-service, healthcare, driving, and technical roles, including:
+
+- Manufacturing and machine operator
+- Warehouse and forklift
+- Apartment maintenance and facilities maintenance
+- Electrical helper and apprentice electrician
+- Welding and fabrication helper
+- Diesel mechanic and heavy equipment helper
+- Construction, carpentry, and installation
+- CDL, delivery, and route-driver jobs
+- Security officer
+- Janitorial and housekeeping
+- Food service and hospitality
+- Customer service, call center, and retail
+- Data entry, office assistant, admin, HR, and bookkeeping
+- Healthcare support and medical office roles
+- Education support
+- IT help desk and cybersecurity support
+
+## Local setup
+
+Run a small local server because the app uses JavaScript modules:
 
 ```bash
 python -m http.server 8000
 ```
 
-Then open `http://localhost:8000`.
+Then open:
 
-## How to put it on GitHub Pages
+```text
+http://localhost:8000
+```
 
-1. Create a new GitHub repository named `get-me-past-ats`.
-2. Upload these files to the repository.
-3. Go to **Settings → Pages**.
-4. Under **Build and deployment**, choose **Deploy from a branch**.
-5. Select the `main` branch and `/root` folder.
-6. Save.
+## GitHub Pages setup
 
-GitHub will give you a live website link.
+1. Open the repository settings.
+2. Go to **Pages**.
+3. Under **Build and deployment**, choose **Deploy from a branch**.
+4. Select the `main` branch and `/root` folder.
+5. Save.
+
+GitHub will provide the live website link after deployment.
 
 ## Project files
 
-- `index.html` — app layout
+- `index.html` — app layout and sections
 - `styles.css` — design and responsive styling
-- `app.js` — keyword analysis, score logic, rewrite output, and tracker storage
-- `sample-resume.txt` — demo resume content
-- `sample-job-description.txt` — demo job post content
-- `docs/product-plan.md` — product vision and future features
+- `app.js` — analyzer, scoring, safe rewrite logic, auth panel behavior, and tracker storage
+- `firebase-config.js` — starter config file for future Firebase setup
+- `FIREBASE_SETUP.md` — notes for connecting real cloud accounts
+- `firestore.rules.txt` — starter Firestore security rules
+- `privacy.html` — privacy policy page
+- `terms.html` — terms of use page
+- `docs/product-plan.md` — product roadmap and build plan
 
-## MVP features
+## Current account note
 
-### Resume analyzer
-Paste a resume and a job description. The app extracts important words from the job description and checks whether the resume includes them.
-
-### 25 job type presets
-The app includes presets for:
-
-- Remote customer support
-- Data entry and clerical
-- Customer service and call center
-- Warehouse and forklift
-- Manufacturing and machine operator
-- Apartment maintenance and property maintenance
-- Construction, electrician helper, welding, diesel, CDL, security, healthcare support, hospitality, food service, janitorial, retail, admin, apprenticeships, and more
-- Warehouse / forklift jobs
-- Construction / carpentry jobs
-- Electrician apprentice jobs
-- Welding / fabrication helper jobs
-- Diesel mechanic / heavy equipment jobs
-- Security officer jobs
-- Remote entry-level / customer support jobs
-- Trade apprenticeship jobs
-- Rail / industrial jobs
-
-### Recruiter red flags
-The app checks for common issues like:
-
-- Missing dates
-- Multiple current jobs
-- Missing sections
-- Resume too thin
-- No measurable proof
-- Safety or fast-paced wording missing when the job post asks for it
-
-### Application tracker
-Users can save jobs they applied to. It stores data in the browser using localStorage.
+The visible account panel is still a starter setup. Tracker data is saved in the browser. Real cross-device sign-in requires connecting Firebase Auth, Supabase, or another backend/database.
 
 ## Next features to build
 
 - PDF resume upload
-- Better date overlap detection
-- AI rewrite mode
-- PDF resume upload
-- Better date overlap detection
 - Export tailored resume as PDF
+- Saved scan reports
 - Follow-up email generator
-- Company contact finder
 - Interview question generator
+- Company contact finder
+- Real cloud login and synced tracker
+- Stronger mobile layout testing
 
 ## Brand angle
 
-**GET ME PAST ATS** is for people who are tired of applying to 100 jobs and never hearing back. It speaks plain language and tells users what to fix before they waste another application.
-
-
-## 50 Job Type Update
-
-The dropdown now includes 50 common job titles across office, remote, warehouse, trades, manufacturing, hospitality, healthcare, education, HR, accounting, IT, and cybersecurity roles.
-
-## Local sign-in and tracker update
-
-This version adds a simple starter sign-in panel.
-
-What it does now:
-
-- Lets a user sign in with name and email
-- Keeps each user's application tracker separate on the same browser
-- Saves tracked jobs with localStorage
-- Lets users export their tracker as a CSV file
-- Lets users clear their tracker
-
-Important: this is a local browser sign-in, not real cloud authentication. It does not sync across phones, computers, or browsers yet. To make real accounts, add Firebase Auth, Supabase Auth, or another backend/database.
-
-
-## Firebase cloud login version
-
-This version includes Firebase Authentication and Firestore support.
-
-Upload these files to GitHub after inserting your Firebase config:
-
-- `index.html`
-- `app.js`
-- `styles.css`
-- `firebase-config.js`
-
-Read `FIREBASE_SETUP.md` for setup steps and use `firestore.rules.txt` for Firestore security rules.
-
-
-## Latest UX update
-
-- Clean hamburger menu
-- Account form moved into the menu
-- Create account and sign in are separate views
-- No Firebase wording shown to users
-- After sign in or account creation, users return to the top of the page
+**GET ME PAST ATS** is for regular people who are qualified, willing to work, and ready to learn, but whose resumes never reach a real person. The app speaks plainly, tells users what is missing, and helps them apply with a better strategy.
