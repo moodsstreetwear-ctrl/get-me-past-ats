@@ -112,52 +112,6 @@ textarea {
   min-height: auto;
 }
 
-.report-details {
-  grid-column: 1 / -1;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: rgba(255,255,255,0.035);
-  overflow: hidden;
-}
-
-.report-details > summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 18px 22px;
-  font-weight: 900;
-  color: var(--text);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.report-details > summary::-webkit-details-marker {
-  display: none;
-}
-
-.report-details > summary::after {
-  content: '+';
-  color: var(--accent-2);
-  font-size: 1.35rem;
-  font-weight: 950;
-}
-
-.report-details[open] > summary::after {
-  content: '−';
-}
-
-.report-details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 0 16px 16px;
-}
-
-.report-details-grid .panel {
-  max-width: none;
-}
-
 /* Hide report sections that are no longer part of the simplified flow. */
 .results-grid.report-grid > article:nth-of-type(3),
 .results-grid.report-grid > article:nth-of-type(4),
@@ -167,83 +121,151 @@ textarea {
   display: none;
 }
 
-.report-details-grid > article:nth-of-type(1) .eyebrow {
-  font-size: 0;
+.report-details {
+  grid-column: 1 / -1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
-.report-details-grid > article:nth-of-type(1) .eyebrow::after {
-  content: "Best Resume Direction";
-  font-size: 0.74rem;
+.report-details > summary {
+  display: none;
 }
 
-.report-details-grid > article:nth-of-type(1) h3 {
-  font-size: 0;
-  margin-bottom: 10px;
+.report-details-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  padding: 0;
 }
 
-.report-details-grid > article:nth-of-type(1) h3::after {
-  content: "What should the resume target?";
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
+.report-details-grid .panel {
+  max-width: none;
 }
 
+.report-details-grid > article:nth-of-type(1),
 .report-details-grid > article:nth-of-type(4),
 .report-details-grid > article:nth-of-type(5),
 .report-details-grid > article:nth-of-type(6) {
   grid-column: 1 / -1;
 }
 
-.report-details-grid > article:nth-of-type(4) .eyebrow,
-.report-details-grid > article:nth-of-type(4) h3 {
-  font-size: 0;
+.gmpt-hidden {
+  display: none !important;
+}
+
+.simple-result-card h4,
+.decision-card h4 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.simple-result-card p,
+.decision-card p,
+.empty-proof,
+.simple-help,
+.better-match-card p {
+  color: var(--muted);
+  line-height: 1.55;
   margin: 0;
 }
 
-.report-details-grid > article:nth-of-type(4) .eyebrow::after {
-  content: "Best Resume Direction";
-  font-size: 0.74rem;
+.decision-card {
+  border-radius: 16px;
+  padding: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
 }
 
-.report-details-grid > article:nth-of-type(4) h3::after {
-  content: "Resume target";
-  display: block;
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
-  margin: 8px 0 12px;
+.decision-card.good {
+  border-color: rgba(167,255,206,0.45);
+  background: rgba(167,255,206,0.10);
 }
 
-.report-details-grid > article:nth-of-type(5) .eyebrow,
-.report-details-grid > article:nth-of-type(5) h3 {
-  font-size: 0;
-  margin: 0;
+.decision-card.good h4 {
+  color: #a7ffce;
 }
 
-.report-details-grid > article:nth-of-type(5) .eyebrow::after {
-  content: "Missing Proof";
-  font-size: 0.74rem;
+.decision-card.caution {
+  border-color: rgba(255,211,105,0.45);
+  background: rgba(255,211,105,0.10);
 }
 
-.report-details-grid > article:nth-of-type(5) h3::after {
-  content: "Job requirements not clearly proven yet";
-  display: block;
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
-  margin: 8px 0 12px;
+.decision-card.caution h4 {
+  color: #ffd369;
 }
 
-.report-details-grid > article:nth-of-type(6) .eyebrow,
-.report-details-grid > article:nth-of-type(6) h3 {
-  font-size: 0;
-  margin: 0;
+.decision-card.danger {
+  border-color: rgba(255,92,122,0.55);
+  background: rgba(255,92,122,0.12);
 }
 
-.report-details-grid > article:nth-of-type(6) .eyebrow::after {
-  content: "Proof Already Found";
-  font-size: 0.74rem;
+.decision-card.danger h4 {
+  color: #ffc2cc;
 }
 
-.report-details-grid > article:nth-of-type(6) h3::after {
-  content: "Skills already supported by the resume";
-  display: block;
-  font-size: clamp(1.25rem, 3vw, 1.5rem);
-  margin: 8px 0 12px;
+.blocker-list {
+  display: grid;
+  gap: 10px;
+}
+
+.blocker-label {
+  margin: 2px 0 0;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.76rem;
+}
+
+.blocker-label.critical {
+  color: #ffc2cc;
+}
+
+.blocker-label.important {
+  color: #ffd369;
+}
+
+.chip.blocker {
+  justify-self: start;
+  border-radius: 14px;
+}
+
+.chip.blocker.critical {
+  background: rgba(255,92,122,0.12);
+  color: #ffc2cc;
+  border-color: rgba(255,92,122,0.28);
+}
+
+.chip.blocker.important {
+  background: rgba(255,211,105,0.11);
+  color: #ffe0a3;
+  border-color: rgba(255,211,105,0.24);
+}
+
+.better-match-list {
+  display: grid;
+  gap: 10px;
+}
+
+.better-match-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  padding: 13px 14px;
+}
+
+.better-match-card strong {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+}
+
+.better-match-card strong span {
+  color: var(--accent-2);
+  white-space: nowrap;
 }
 
 #rewrite {
@@ -264,7 +286,7 @@ textarea {
 }
 
 #rewrite .section-heading p:last-child::after {
-  content: "Next feature: generate the full resume instead of copying separate summary and bullet snippets.";
+  content: "Next feature: generate a full ATS-ready resume using only proven experience.";
   font-size: 1rem;
 }
 
@@ -324,7 +346,6 @@ textarea {
     grid-column: auto;
   }
 
-  .report-details-grid,
   .tracker-form {
     grid-template-columns: 1fr;
   }
