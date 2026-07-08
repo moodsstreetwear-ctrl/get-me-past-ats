@@ -89,6 +89,15 @@ textarea {
   order: -3;
 }
 
+.score-panel h3 {
+  font-size: 0;
+}
+
+.score-panel h3::after {
+  content: "Resume Match";
+  font-size: clamp(1.4rem, 4vw, 2rem);
+}
+
 #applyDecisionOutput,
 #applicationPriorityOutput,
 #fitScoreOutput,
@@ -149,12 +158,132 @@ textarea {
   max-width: none;
 }
 
+/* Hide report sections that are no longer part of the simplified flow. */
+.results-grid.report-grid > article:nth-of-type(3),
+.results-grid.report-grid > article:nth-of-type(4),
+.report-details-grid > article:nth-of-type(2),
+.report-details-grid > article:nth-of-type(3),
+.report-details-grid > article:nth-of-type(7) {
+  display: none;
+}
+
+.report-details-grid > article:nth-of-type(1) .eyebrow {
+  font-size: 0;
+}
+
+.report-details-grid > article:nth-of-type(1) .eyebrow::after {
+  content: "Best Resume Direction";
+  font-size: 0.74rem;
+}
+
+.report-details-grid > article:nth-of-type(1) h3 {
+  font-size: 0;
+  margin-bottom: 10px;
+}
+
+.report-details-grid > article:nth-of-type(1) h3::after {
+  content: "What should the resume target?";
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+}
+
+.report-details-grid > article:nth-of-type(4),
+.report-details-grid > article:nth-of-type(5),
+.report-details-grid > article:nth-of-type(6) {
+  grid-column: 1 / -1;
+}
+
+.report-details-grid > article:nth-of-type(4) .eyebrow,
+.report-details-grid > article:nth-of-type(4) h3 {
+  font-size: 0;
+  margin: 0;
+}
+
+.report-details-grid > article:nth-of-type(4) .eyebrow::after {
+  content: "Best Resume Direction";
+  font-size: 0.74rem;
+}
+
+.report-details-grid > article:nth-of-type(4) h3::after {
+  content: "Resume target";
+  display: block;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  margin: 8px 0 12px;
+}
+
+.report-details-grid > article:nth-of-type(5) .eyebrow,
+.report-details-grid > article:nth-of-type(5) h3 {
+  font-size: 0;
+  margin: 0;
+}
+
+.report-details-grid > article:nth-of-type(5) .eyebrow::after {
+  content: "Missing Proof";
+  font-size: 0.74rem;
+}
+
+.report-details-grid > article:nth-of-type(5) h3::after {
+  content: "Job requirements not clearly proven yet";
+  display: block;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  margin: 8px 0 12px;
+}
+
+.report-details-grid > article:nth-of-type(6) .eyebrow,
+.report-details-grid > article:nth-of-type(6) h3 {
+  font-size: 0;
+  margin: 0;
+}
+
+.report-details-grid > article:nth-of-type(6) .eyebrow::after {
+  content: "Proof Already Found";
+  font-size: 0.74rem;
+}
+
+.report-details-grid > article:nth-of-type(6) h3::after {
+  content: "Skills already supported by the resume";
+  display: block;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  margin: 8px 0 12px;
+}
+
 #rewrite {
   margin-top: 8px;
 }
 
+#rewrite .section-heading h2 {
+  font-size: 0;
+}
+
+#rewrite .section-heading h2::after {
+  content: "Resume Generator";
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+#rewrite .section-heading p:last-child {
+  font-size: 0;
+}
+
+#rewrite .section-heading p:last-child::after {
+  content: "Next feature: generate the full resume instead of copying separate summary and bullet snippets.";
+  font-size: 1rem;
+}
+
 .rewrite-grid {
-  grid-template-columns: 1fr;
+  display: none;
+}
+
+#rewrite::after {
+  content: "Generate Resume — Coming Next";
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, var(--accent), #9e8cff);
+  color: #fff;
+  font-weight: 950;
+  opacity: 0.72;
 }
 
 .tracker-form {
